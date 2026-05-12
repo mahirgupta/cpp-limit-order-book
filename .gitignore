@@ -1,0 +1,25 @@
+# Compiled binaries
+orderbook
+orderbook_debug
+*.out
+*.exe
+*.o
+*.obj
+
+# Build folders
+build/
+cmake-build-*/
+DerivedData/
+
+# Xcode
+*.xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+.cph/
