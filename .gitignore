@@ -5,6 +5,7 @@ orderbook_debug
 *.exe
 *.o
 *.obj
+*.bin
 
 # Build folders
 build/
