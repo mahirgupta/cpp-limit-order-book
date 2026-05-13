@@ -1,12 +1,12 @@
 #include<iostream>
-#include<Cli.hpp>
+#include<Cli/Cli.hpp>
 #include<string>
 #include<sstream>
 
 
 void Cli::printBuyOrderList(){
     if(bk.getBestBid()==-1){
-        std::cout<<"No pending Buy Ask...\n";
+        std::cout<<"No pending Bid ...\n";
         return ;
     }
     std::cout<<"Bid::\n";
@@ -14,14 +14,14 @@ void Cli::printBuyOrderList(){
     for(auto &i:bk.getBuyOrders()){
         std::cout<<i.orderId<<"\t"<<i.price<<"\t"<<i.quantity<<"\n";
     }
-    std::cout<<"/n";
+    std::cout<<"\n";
     return ;
 
 }
 
 void Cli::printSellOrderList(){
     if(bk.getBestAsk()==-1){
-        std::cout<<"No pending Buy Ask...\n";
+        std::cout<<"No pending Ask...\n";
         return ;
     }
     std::cout<<"Ask::\n";
@@ -29,7 +29,7 @@ void Cli::printSellOrderList(){
     for(auto &i:bk.getSellOrders()){
         std::cout<<i.orderId<<"\t"<<i.price<<"\t"<<i.quantity<<"\n";
     }
-    std::cout<<"/n";
+    std::cout<<"\n";
     return ;
 
 }
@@ -68,7 +68,7 @@ int64_t stti(std::string &s){
         if(ans>INT_MAX) return -1;
     }
     if(ans>INT_MAX) ans = -1;
-    return int(ans);
+    return int64_t(ans);
 }
 
 

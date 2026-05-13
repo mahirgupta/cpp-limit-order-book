@@ -1,4 +1,4 @@
-#include "OrderBook.hpp"
+#include<orderBook/OrderBook.hpp>
 #include<algorithm>
 
 namespace Orderbook{
@@ -51,7 +51,7 @@ namespace Orderbook{
         b.type = Type::buy;
 
         OrderBook::buyOrders[price].push_back(b);
-        OrderBook::orders[curOrderId] = std::prev(OrderBook::sellOrders[price].end());
+        OrderBook::orders[curOrderId] = std::prev(OrderBook::buyOrders[price].end());
         return OrderBook::match(Type::buy);
         
     }
@@ -146,7 +146,7 @@ namespace Orderbook{
 
     std::vector<Order> OrderBook::getBuyOrders(){
         std::vector<Order>ans;
-        for(auto i = buyOrders.rbegin(); i!=buyOrders.rend(); i--){
+        for(auto i = buyOrders.rbegin(); i!=buyOrders.rend(); ++i){
             for(auto j:(*i).second){
                 ans.push_back(j);
             }
@@ -178,7 +178,7 @@ namespace Orderbook{
         return ans;
     }
 
-    
+
 
 
 }
