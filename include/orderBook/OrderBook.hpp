@@ -1,6 +1,7 @@
 #pragma once
 #include<cstdint>
 #include<map>
+#include<vector>
 #include<list>
 #include<orderBook/Order.hpp>
 #include<orderBook/Trade.hpp>
@@ -25,9 +26,9 @@ namespace Orderbook{
 
         OrderId getCurOrderId();
 
-        std::int64_t makeBuyOrder(Price price, Quantity quantity);
+        Orderbook::OrderResult makeBuyOrder(Price price, Quantity quantity);
         
-        std::int64_t makeSellOrder(Price price, Quantity quantity);
+        Orderbook::OrderResult makeSellOrder(Price price, Quantity quantity);
 
         bool cancelOrder(OrderId id);
 
@@ -37,9 +38,9 @@ namespace Orderbook{
 
         Price getSpread();
 
-        std::int64_t match(Type type);
+        std::vector<Orderbook::Trade> match(Type type);
 
-        void makeTrade(OrderId buyId, OrderId sellId, Quantity quantity, Price price);
+        Orderbook::Trade makeTrade(OrderId buyId, OrderId sellId, Quantity quantity, Price price);
 
         void clear();
 

@@ -43,7 +43,8 @@ namespace Orderbook{
         return ans;
     }
 
-    std::int64_t OrderBook::makeBuyOrder(Price price, Quantity quantity){
+    Orderbook::OrderResult OrderBook::makeBuyOrder(Price price, Quantity quantity){
+        if(price<=0 || quantity<=0) return {0,0,{},0};
         Order b;
         b.orderId = ++curOrderId;
         b.price = price;
@@ -52,11 +53,20 @@ namespace Orderbook{
 
         OrderBook::buyOrders[price].push_back(b);
         OrderBook::orders[curOrderId] = std::prev(OrderBook::buyOrders[price].end());
-        return OrderBook::match(Type::buy);
+        Orderbook::OrderResult ans;
+        ans.accepted = 1;
+        ans.orderId = curOrderId;
+        ans.trade = match(Type::buy);
+        ans.remainQuantity = quantity;
+        for(auto &i:ans.trade){
+            ans.remainQuantity-=i.quantity;
+        }
+        return ans;
         
     }
     
-    std::int64_t OrderBook::makeSellOrder(Price price, Quantity quantity){
+    Orderbook::OrderResult OrderBook::makeSellOrder(Price price, Quantity quantity){
+        if(price<=0 || quantity<=0) return {0,0,{},0};
         Order b;
         b.orderId = ++curOrderId;
         b.price = price;
@@ -65,8 +75,15 @@ namespace Orderbook{
 
         OrderBook::sellOrders[price].push_back(b);
         OrderBook::orders[curOrderId] = std::prev(OrderBook::sellOrders[price].end());
-
-        return OrderBook::match(Type::sell);
+        Orderbook::OrderResult ans;
+        ans.accepted = 1;
+        ans.orderId = curOrderId;
+        ans.trade = match(Type::sell);
+        ans.remainQuantity = quantity;
+        for(auto &i:ans.trade){
+            ans.remainQuantity-=i.quantity;
+        }
+        return ans;
 
     }
 
@@ -89,47 +106,57 @@ namespace Orderbook{
         return 1;
     }
 
-    std::int64_t OrderBook::match(Type type){
-        Price npr = -1;
+    std::vector<Orderbook::Trade> OrderBook::match(Type type){
 
-        std::int64_t count=0;
+        std::vector<Orderbook::Trade>ans;
 
-        while(OrderBook::getSpread()!=npr && (OrderBook::getBestBid() >= OrderBook::getBestAsk())){
-            Order buyside = OrderBook::buyOrders[getBestBid()].front();
-            Order sellside = OrderBook::sellOrders[getBestAsk()].front();
-            Price price = (type==Type::buy)?sellside.price : buyside.price;
-            Quantity quantity = std::min(buyside.quantity, sellside.quantity);
-            OrderBook::makeTrade(buyside.orderId, sellside.orderId, quantity,price);
-            count++;
-
-            OrderBook::buyOrders[getBestBid()].front().quantity-=quantity;
-            OrderBook::sellOrders[getBestAsk()].front().quantity-=quantity;
+        while((!OrderBook::buyOrders.empty()) && (!OrderBook::sellOrders.empty()) &&  (OrderBook::getBestBid() >= OrderBook::getBestAsk())){
             
-            if(OrderBook::buyOrders[getBestBid()].front().quantity==0){
-                OrderBook::buyOrders[OrderBook::getBestBid()].erase(OrderBook::orders[buyside.orderId]);
-                OrderBook::orders.erase(buyside.orderId);
-                if(OrderBook::buyOrders[OrderBook::getBestBid()].empty()) OrderBook::buyOrders.erase(getBestBid());
-        
+            Orderbook::Price buySidePrice = OrderBook::getBestBid();
+            Orderbook::Price sellSidePrice = OrderBook::getBestAsk();
+
+            auto buyLevelIt = std::prev(buyOrders.end());
+            auto sellLevelIt = sellOrders.begin();
+            
+            auto &buyOrder = buyLevelIt->second.front();
+            auto &sellOrder = sellLevelIt->second.front();
+
+            auto buyOrderid = buyOrder.orderId;
+            auto sellOrderid = sellOrder.orderId;
+            
+            Orderbook::Price price = (type==Type::buy)?sellSidePrice : buySidePrice;
+            Orderbook::Quantity quantity = std::min(buyOrder.quantity, sellOrder.quantity);
+
+            ans.push_back(OrderBook::makeTrade(buyOrderid,sellOrderid, quantity, price));
+            
+            buyOrder.quantity-=quantity;
+            sellOrder.quantity-=quantity;
+
+            if(buyOrder.quantity==0){
+                buyLevelIt->second.erase(OrderBook::orders[buyOrderid]);
+                OrderBook::orders.erase(buyOrderid);
+                if(buyLevelIt->second.empty()) OrderBook::buyOrders.erase(buyLevelIt);   
             }
-            if(OrderBook::sellOrders[getBestAsk()].front().quantity==0){
-                OrderBook::sellOrders[OrderBook::getBestAsk()].erase(OrderBook::orders[sellside.orderId]);
-                OrderBook::orders.erase(sellside.orderId);
-                if(OrderBook::sellOrders[OrderBook::getBestAsk()].empty()) OrderBook::sellOrders.erase(getBestAsk());
-        
+            
+            if(sellOrder.quantity==0){
+                sellLevelIt->second.erase(OrderBook::orders[sellOrderid]);
+                OrderBook::orders.erase(sellOrderid);
+                if(sellLevelIt->second.empty()) OrderBook::sellOrders.erase(sellLevelIt);   
             }
         }
 
-        return count;
+        return ans;
 
     }
 
-    void OrderBook::makeTrade(OrderId buyId, OrderId sellId, Quantity quantity, Price price){
+    Orderbook::Trade OrderBook::makeTrade(OrderId buyId, OrderId sellId, Quantity quantity, Price price){
         Trade t;
         t.buyerOrderId = buyId;
         t.sellerOrderId = sellId;
         t.price= price;
         t.quantity = quantity;
         OrderBook::trade.push_back(t);
+        return t;
     }
 
     void OrderBook::clear(){

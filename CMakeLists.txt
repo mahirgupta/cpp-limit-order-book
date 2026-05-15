@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(CTest)
+
 add_library(orderbook
     src/OrderBook.cpp
 )
@@ -33,3 +35,5 @@ target_link_libraries(orderbook_tests
     PRIVATE
         orderbook
 )
+
+add_test(NAME orderbook_tests COMMAND orderbook_tests)
