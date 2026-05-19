@@ -131,7 +131,7 @@ void Cli::run(Orderbook::OrderBook& bk){
                     std::int64_t myInt = stti(words[1]);
                     std::int64_t qn = stti(words[2]);
                     if(myInt<=0) {
-                        std::cout<<"Error..! Ask price is not positive number"<<std::endl;
+                        std::cout<<"Error..! price is not positive number"<<std::endl;
                     }
                     else if(qn<=0){
                         std::cout<<"Error..! Quantity is not positive Integer"<<std::endl;
@@ -156,7 +156,7 @@ void Cli::run(Orderbook::OrderBook& bk){
                     std::int64_t myInt = stti(words[1]);
                     std::int64_t qn = stti(words[2]);
                     if(myInt<=0) {
-                        std::cout<<"Error..! Ask price is not positive number"<<std::endl;
+                        std::cout<<"Error..! Price is not positive number"<<std::endl;
                     }
                     else if(qn<=0){
                         std::cout<<"Error..! Quantity is not positive Integer"<<std::endl;
