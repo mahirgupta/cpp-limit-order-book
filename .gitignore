@@ -1,5 +1,7 @@
 # Compiled binaries
-# orderbook
+/orderbook
+/orderbook_cli
+/orderbook_tests
 orderbook_debug
 *.out
 *.exe

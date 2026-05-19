@@ -1,19 +1,21 @@
 #include<iostream>
 #include<Cli/Cli.hpp>
+#include<cstdint>
+#include<limits>
 #include<string>
 #include<sstream>
 #include<vector>
 
 
 
-void Cli::printBuyOrderList(Orderbook::OrderBook *bk){
-    if(bk->getBestBid()==-1){
+void Cli::printBuyOrderList(Orderbook::OrderBook& bk){
+    if(bk.getBestBid()==-1){
         std::cout<<"No pending Bid ...\n";
         return ;
     }
     std::cout<<"Bid::\n";
     std::cout<<"OrderId\tPrice\tQuantity\n";
-    for(auto &i:bk->getBuyOrders()){
+    for(auto &i:bk.getBuyOrders()){
         std::cout<<i.orderId<<"\t"<<i.price<<"\t"<<i.quantity<<"\n";
     }
     std::cout<<"\n";
@@ -21,14 +23,14 @@ void Cli::printBuyOrderList(Orderbook::OrderBook *bk){
 
 }
 
-void Cli::printSellOrderList(Orderbook::OrderBook *bk){
-    if(bk->getBestAsk()==-1){
+void Cli::printSellOrderList(Orderbook::OrderBook& bk){
+    if(bk.getBestAsk()==-1){
         std::cout<<"No pending Ask...\n";
         return ;
     }
     std::cout<<"Ask::\n";
     std::cout<<"OrderId\tPrice\tQuantity\n";
-    for(auto &i:bk->getSellOrders()){
+    for(auto &i:bk.getSellOrders()){
         std::cout<<i.orderId<<"\t"<<i.price<<"\t"<<i.quantity<<"\n";
     }
     std::cout<<"\n";
@@ -36,7 +38,7 @@ void Cli::printSellOrderList(Orderbook::OrderBook *bk){
 
 }
 
-void Cli::printTrade(std::vector<Orderbook::Trade>trade){
+void Cli::printTrade(const std::vector<Orderbook::Trade>& trade){
     if(trade.empty()){
         std::cout<<"No Trade till now\n";
         return ;
@@ -49,19 +51,19 @@ void Cli::printTrade(std::vector<Orderbook::Trade>trade){
     return;
 }
 
-void Cli::printBest(Orderbook::OrderBook *bk){
+void Cli::printBest(Orderbook::OrderBook& bk){
     std::cout<<"Best Bid\tBest Ask\tSpread\n";
-    if(bk->getBestBid()==-1)std::cout<<"none\t";
-    else std::cout<<bk->getBestBid()<<"\t";
-    if(bk->getBestAsk()==-1)std::cout<<"none\t";
-    else std::cout<<bk->getBestAsk()<<"\t";
-    if(bk->getSpread()==-1)std::cout<<"none\n";
-    else std::cout<<bk->getSpread()<<"\n";
+    if(bk.getBestBid()==-1)std::cout<<"none\t";
+    else std::cout<<bk.getBestBid()<<"\t";
+    if(bk.getBestAsk()==-1)std::cout<<"none\t";
+    else std::cout<<bk.getBestAsk()<<"\t";
+    if(bk.getSpread()==-1)std::cout<<"none\n";
+    else std::cout<<bk.getSpread()<<"\n";
     std::cout<<"\n";
     return;
 }
 
-int64_t stti(std::string &s){
+int64_t stti(const std::string &s){
     int64_t ans = 0;
 
     for(auto i:s){
@@ -72,7 +74,7 @@ int64_t stti(std::string &s){
     return int64_t(ans);
 }
 
-void printOrderResult(Orderbook::OrderResult &ok, std::string OrderType){
+void printOrderResult(const Orderbook::OrderResult &ok, const std::string& OrderType){
     if(ok.accepted){
         std::cout<<"Successfully Placed "<<OrderType<<" with OrderId: "<<ok.orderId<<std::endl;
         if(!ok.trade.empty()){
@@ -80,7 +82,7 @@ void printOrderResult(Orderbook::OrderResult &ok, std::string OrderType){
             Cli::printTrade(ok.trade);
 
             if(ok.remainQuantity>0){
-                std::cout<<"Partial Order reamins with orderId: "<<ok.orderId<<" Quantity: "<<ok.remainQuantity<<std::endl;
+                std::cout<<"Partial order remains with orderId: "<<ok.orderId<<" Quantity: "<<ok.remainQuantity<<std::endl;
             }
             else std::cout<<"Order Complete Fully"<<std::endl;
         }
@@ -91,7 +93,7 @@ void printOrderResult(Orderbook::OrderResult &ok, std::string OrderType){
 }
 
 
-void Cli::run(Orderbook::OrderBook *bk){
+void Cli::run(Orderbook::OrderBook& bk){
     printBuyOrderList(bk);
     printSellOrderList(bk);
     std::string inp;
@@ -112,8 +114,8 @@ void Cli::run(Orderbook::OrderBook *bk){
         if(words.size()==0) continue;
         if(words[0] == "help" && words.size()==1){
             std::cout<<"Available commands: help, buy, sell"<<std::endl;
-            std::cout<<"buy <askPrice> <quantity>"<<std::endl;
-            std::cout<<"sell <askPrice> <quantity>"<<std::endl;
+            std::cout<<"buy <price> <quantity>"<<std::endl;
+            std::cout<<"sell <price> <quantity>"<<std::endl;
             std::cout<<"cancel <orderid>"<<std::endl;
             std::cout<<"book"<<std::endl;
             std::cout<<"trades"<<std::endl;
@@ -137,7 +139,7 @@ void Cli::run(Orderbook::OrderBook *bk){
                     }
 
                     else{
-                        Orderbook::OrderResult ok = bk->makeBuyOrder(myInt,qn);
+                        Orderbook::OrderResult ok = bk.makeBuyOrder(myInt,qn);
                         printOrderResult(ok,"BuyOrder");
                         printBuyOrderList(bk);
                         printSellOrderList(bk);
@@ -162,7 +164,7 @@ void Cli::run(Orderbook::OrderBook *bk){
                     }
                     
                     else{
-                        auto ok = bk->makeSellOrder(myInt,qn);
+                        auto ok = bk.makeSellOrder(myInt,qn);
                         printOrderResult(ok,"sellOrder");
                         printBuyOrderList(bk);
                         printSellOrderList(bk);
@@ -175,12 +177,12 @@ void Cli::run(Orderbook::OrderBook *bk){
 
         else if(words[0]=="cancel" && words.size()==2){
             try{
-                int myInt = stti(words[1]);
+                std::int64_t myInt = stti(words[1]);
                 if(myInt<=0) {
                     std::cout<<"Error..! Order id must be a positive integer"<<std::endl;
                 }
                 else{
-                    bool ok = bk->cancelOrder(myInt);
+                    bool ok = bk.cancelOrder(myInt);
                 if(ok>0){
                     std::cout<<"Successfully canceld the order id: "<<myInt<<std::endl;
                     printBuyOrderList(bk);
@@ -199,7 +201,7 @@ void Cli::run(Orderbook::OrderBook *bk){
         }
 
         else if(words[0]=="trades" && words.size()==1){
-            printTrade(bk->getTrade());
+            printTrade(bk.getTrade());
         }
 
         else if(words[0]=="best" && words.size()==1){
@@ -207,7 +209,7 @@ void Cli::run(Orderbook::OrderBook *bk){
         }
 
         else if(words[0]=="clear" && words.size()==1){
-            bk->clear();
+            bk.clear();
             std::cout<<"Success Book got cleared"<<std::endl;
         }
 
@@ -220,7 +222,5 @@ void Cli::run(Orderbook::OrderBook *bk){
         }
     }
 }
-
-
 
 

@@ -14,17 +14,27 @@ namespace Orderbook{
     private:
         std::map<Price, std::list<Orderbook::Order>>buyOrders;
         std::map<Price, std::list<Orderbook::Order>>sellOrders;
-        std::map<OrderId, std::list<Order>::iterator>orders;
+        struct OrderLocation{
+            Type side;
+            Price price;
+            std::list<Order>::iterator iterator;
+        };
+        std::map<OrderId, OrderLocation>orders;
         Orderbook::OrderId curOrderId;
         std::vector<Orderbook::Trade>trade;
-        
+
+        std::vector<Orderbook::Trade> match(Type type);
+
+        Orderbook::Trade makeTrade(OrderId buyId, OrderId sellId, Quantity quantity, Price price);
 
 
     public:
         OrderBook();
         ~OrderBook();
+        OrderBook(const OrderBook&) = delete;
+        OrderBook& operator=(const OrderBook&) = delete;
 
-        OrderId getCurOrderId();
+        OrderId getCurOrderId() const;
 
         Orderbook::OrderResult makeBuyOrder(Price price, Quantity quantity);
         
@@ -32,24 +42,22 @@ namespace Orderbook{
 
         bool cancelOrder(OrderId id);
 
-        Price getBestBid();
+        Price getBestBid() const;
 
-        Price getBestAsk();
+        Price getBestAsk() const;
 
-        Price getSpread();
-
-        std::vector<Orderbook::Trade> match(Type type);
-
-        Orderbook::Trade makeTrade(OrderId buyId, OrderId sellId, Quantity quantity, Price price);
+        Price getSpread() const;
 
         void clear();
 
-        std::vector<Order> getBuyOrders();
+        std::vector<Order> getBuyOrders() const;
 
-        std::vector<Order> getSellOrders();
+        std::vector<Order> getSellOrders() const;
 
-        std::vector<Trade> getTrade();
+        std::vector<Trade> getTrade() const;
 
-        std::vector<Trade> getTrade(std::int64_t s);
+        std::vector<Trade> getTrade(std::int64_t s) const;
+
+        bool checkInvariants() const;
     };
 }

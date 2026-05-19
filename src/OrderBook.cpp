@@ -1,5 +1,7 @@
 #include<orderBook/OrderBook.hpp>
 #include<algorithm>
+#include<iterator>
+#include<set>
 
 namespace Orderbook{
 
@@ -11,11 +13,11 @@ namespace Orderbook{
         trade.clear();
     }
 
-    OrderId OrderBook::getCurOrderId(){
+    OrderId OrderBook::getCurOrderId() const{
         return OrderBook::curOrderId;
     }
 
-    Price OrderBook::getBestBid(){
+    Price OrderBook::getBestBid() const{
         Price ans{-1};
         if(!OrderBook::buyOrders.empty()) {
             ans = (--buyOrders.end())->first;
@@ -23,7 +25,7 @@ namespace Orderbook{
         return ans;
     }
     
-    Price OrderBook::getBestAsk(){
+    Price OrderBook::getBestAsk() const{
         Price ans{-1};
         if(!OrderBook::sellOrders.empty()) {
             ans = (sellOrders.begin())->first;
@@ -31,7 +33,7 @@ namespace Orderbook{
         return ans;
     }
 
-    Price OrderBook::getSpread(){
+    Price OrderBook::getSpread() const{
         Price bid = OrderBook::getBestBid();
         Price ask = OrderBook::getBestAsk();
         Price ans{-1};
@@ -52,7 +54,7 @@ namespace Orderbook{
         b.type = Type::buy;
 
         OrderBook::buyOrders[price].push_back(b);
-        OrderBook::orders[curOrderId] = std::prev(OrderBook::buyOrders[price].end());
+        OrderBook::orders[curOrderId] = {Type::buy, price, std::prev(OrderBook::buyOrders[price].end())};
         Orderbook::OrderResult ans;
         ans.accepted = 1;
         ans.orderId = curOrderId;
@@ -74,7 +76,7 @@ namespace Orderbook{
         b.type = Type::sell;
 
         OrderBook::sellOrders[price].push_back(b);
-        OrderBook::orders[curOrderId] = std::prev(OrderBook::sellOrders[price].end());
+        OrderBook::orders[curOrderId] = {Type::sell, price, std::prev(OrderBook::sellOrders[price].end())};
         Orderbook::OrderResult ans;
         ans.accepted = 1;
         ans.orderId = curOrderId;
@@ -88,21 +90,25 @@ namespace Orderbook{
     }
 
     bool OrderBook::cancelOrder(OrderId id){
-        if(OrderBook::orders.find(id)==OrderBook::orders.end()){
+        auto orderIt = OrderBook::orders.find(id);
+        if(orderIt==OrderBook::orders.end()){
             return 0;
         }
-        Price price = OrderBook::orders[id]->price;
-        Type type = OrderBook::orders[id]->type;
+        auto location = orderIt->second;
 
-        if(type==Type::buy){
-            OrderBook::buyOrders[price].erase(OrderBook::orders[id]);
-            if(OrderBook::buyOrders[price].empty()) OrderBook::buyOrders.erase(price);
+        if(location.side==Type::buy){
+            auto levelIt = OrderBook::buyOrders.find(location.price);
+            if(levelIt==OrderBook::buyOrders.end()) return 0;
+            levelIt->second.erase(location.iterator);
+            if(levelIt->second.empty()) OrderBook::buyOrders.erase(levelIt);
         }
         else{
-            OrderBook::sellOrders[price].erase(OrderBook::orders[id]);
-            if(OrderBook::sellOrders[price].empty()) OrderBook::sellOrders.erase(price);
+            auto levelIt = OrderBook::sellOrders.find(location.price);
+            if(levelIt==OrderBook::sellOrders.end()) return 0;
+            levelIt->second.erase(location.iterator);
+            if(levelIt->second.empty()) OrderBook::sellOrders.erase(levelIt);
         }
-        OrderBook::orders.erase(id);
+        OrderBook::orders.erase(orderIt);
         return 1;
     }
 
@@ -133,13 +139,13 @@ namespace Orderbook{
             sellOrder.quantity-=quantity;
 
             if(buyOrder.quantity==0){
-                buyLevelIt->second.erase(OrderBook::orders[buyOrderid]);
+                buyLevelIt->second.erase(OrderBook::orders[buyOrderid].iterator);
                 OrderBook::orders.erase(buyOrderid);
                 if(buyLevelIt->second.empty()) OrderBook::buyOrders.erase(buyLevelIt);   
             }
             
             if(sellOrder.quantity==0){
-                sellLevelIt->second.erase(OrderBook::orders[sellOrderid]);
+                sellLevelIt->second.erase(OrderBook::orders[sellOrderid].iterator);
                 OrderBook::orders.erase(sellOrderid);
                 if(sellLevelIt->second.empty()) OrderBook::sellOrders.erase(sellLevelIt);   
             }
@@ -171,7 +177,7 @@ namespace Orderbook{
         clear();
     }
 
-    std::vector<Order> OrderBook::getBuyOrders(){
+    std::vector<Order> OrderBook::getBuyOrders() const{
         std::vector<Order>ans;
         for(auto i = buyOrders.rbegin(); i!=buyOrders.rend(); ++i){
             for(auto j:(*i).second){
@@ -182,7 +188,7 @@ namespace Orderbook{
         return ans;
     }
 
-    std::vector<Order> OrderBook::getSellOrders(){
+    std::vector<Order> OrderBook::getSellOrders() const{
         std::vector<Order>ans;
         for(auto i = sellOrders.begin(); i!=sellOrders.end(); i++){
             for(auto j:(*i).second){
@@ -193,20 +199,62 @@ namespace Orderbook{
         return ans;
     }
 
-    std::vector<Trade> OrderBook::getTrade(){
+    std::vector<Trade> OrderBook::getTrade() const{
         return trade;
     }
 
-    std::vector<Trade>OrderBook::getTrade(std::int64_t s){
+    std::vector<Trade>OrderBook::getTrade(std::int64_t s) const{
         std::vector<Trade>ans;
-        for(std::int64_t i = std::max(std::int64_t{0},std::int64_t(trade.size())-s);i<std::int64_t(trade.size());i++){
+        if(s <= 0) return ans;
+        auto start = std::max(std::int64_t{0},std::int64_t(trade.size())-s);
+        for(auto i = static_cast<std::size_t>(start); i<trade.size(); i++){
             ans.push_back(trade[i]);
         }
         return ans;
+    }
+
+    bool OrderBook::checkInvariants() const{
+        std::set<OrderId> activeOrderIds;
+
+        auto checkSide = [&](const auto& sideOrders, Type side) {
+            for(const auto& level : sideOrders){
+                if(level.second.empty()) return false;
+
+                for(auto it = level.second.begin(); it != level.second.end(); ++it){
+                    const auto& order = *it;
+                    if(order.quantity <= 0) return false;
+                    if(order.price != level.first) return false;
+                    if(order.type != side) return false;
+                    if(!activeOrderIds.insert(order.orderId).second) return false;
+
+                    auto locationIt = orders.find(order.orderId);
+                    if(locationIt == orders.end()) return false;
+                    const auto& location = locationIt->second;
+                    if(location.side != side) return false;
+                    if(location.price != level.first) return false;
+                    if(location.iterator != it) return false;
+                }
+            }
+            return true;
+        };
+
+        if(!checkSide(buyOrders, Type::buy)) return false;
+        if(!checkSide(sellOrders, Type::sell)) return false;
+        if(activeOrderIds.size() != orders.size()) return false;
+
+        if(!buyOrders.empty() && !sellOrders.empty()){
+            if(std::prev(buyOrders.end())->first >= sellOrders.begin()->first) return false;
+        }
+
+        for(const auto& currentTrade : trade){
+            if(currentTrade.price <= 0) return false;
+            if(currentTrade.quantity <= 0) return false;
+        }
+
+        return true;
     }
 
 
 
 
 }
-

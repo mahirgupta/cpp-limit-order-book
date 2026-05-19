@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <random>
 #include <vector>
 
 #define CHECK(condition)                                                   \
@@ -33,8 +34,6 @@ void test_no_match() {
     CHECK(book.getBestBid() == 100);
     CHECK(book.getBestAsk() == 105);
     CHECK(book.getSpread() == 5);
-
-    // CHECK(book.checkInvariants());
 }
 
 
@@ -694,7 +693,7 @@ void test_trade_book_always_sorted(){
 
     auto b = book.getBuyOrders();
     auto s = book.getSellOrders();
-    auto last = 1000;
+    Orderbook::Price last = 1000;
     for(auto i:b){
         CHECK(i.price<=last && i.quantity>0);
         last = i.price;
@@ -707,6 +706,37 @@ void test_trade_book_always_sorted(){
     }
 
 
+}
+
+void test_randomized_operations_preserve_invariants(){
+    Orderbook::OrderBook book;
+    std::vector<Orderbook::OrderId> candidateOrderIds;
+    std::mt19937 rng(42);
+
+    for(int step = 0; step < 5000; ++step){
+        const auto op = static_cast<int>(rng() % 3);
+        const auto price = static_cast<Orderbook::Price>(90 + (rng() % 25));
+        const auto quantity = static_cast<Orderbook::Quantity>(1 + (rng() % 10));
+
+        if(op == 0){
+            auto result = book.makeBuyOrder(price, quantity);
+            if(result.accepted && result.remainQuantity > 0){
+                candidateOrderIds.push_back(result.orderId);
+            }
+        }
+        else if(op == 1){
+            auto result = book.makeSellOrder(price, quantity);
+            if(result.accepted && result.remainQuantity > 0){
+                candidateOrderIds.push_back(result.orderId);
+            }
+        }
+        else if(!candidateOrderIds.empty()){
+            const auto index = static_cast<std::size_t>(rng() % candidateOrderIds.size());
+            book.cancelOrder(candidateOrderIds[index]);
+        }
+
+        CHECK(book.checkInvariants());
+    }
 }
 
 
@@ -749,6 +779,7 @@ int main() {
     RUN_TEST(test_trade_quantities_always_positive);
     RUN_TEST(test_trade_price_always_positive);
     RUN_TEST(test_trade_book_always_sorted);
+    RUN_TEST(test_randomized_operations_preserve_invariants);
 
     std::cout << "\nAll tests passed.\n";
     return 0;
