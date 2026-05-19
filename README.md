@@ -1,26 +1,63 @@
-# C++ Limit Order Book - V1
+# C++ Limit Order Book - V2
 
-This is a simple single-symbol limit order book and matching engine written in C++.
+Single-symbol limit order book and CLI written in C++17.
 
-The project supports basic buy/sell limit orders, automatic matching, trade generation, cancellations, trade history, and best bid/ask display.
+V2 refactors the original prototype into a small CMake project with a core order-book library, CLI executable, and regression tests.
 
 ## Features
 
-- Buy limit orders
-- Sell limit orders
-- Automatic matching when best bid >= best ask
-- Price-time priority
-- Trade price uses resting order price
-- Partial fills
-- Full fills
+- Buy and sell limit orders
+- Price-time priority matching
+- Resting-order-price trade execution
+- Full and partial fills
+- Multi-level sweeps
 - Cancel active orders by order id
 - Trade history
 - Best bid, best ask, and spread
-- Clear book command
-- Basic CLI input validation
-- Memory cleanup on exit
+- Clear/reset command
+- Core order validation
+- CTest regression suite
 
-## Commands
+## Project Layout
+
+```text
+include/
+  Cli/
+    Cli.hpp
+  orderBook/
+    Order.hpp
+    OrderBook.hpp
+    Trade.hpp
+    Type.hpp
+src/
+  Cli.cpp
+  OrderBook.cpp
+  main.cpp
+tests/
+  OrderBookTest.cpp
+CMakeLists.txt
+```
+
+## Build
+
+```bash
+cmake -S . -B build
+cmake --build build
+```
+
+## Test
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+## Run CLI
+
+```bash
+./build/orderbook_cli
+```
+
+## CLI Commands
 
 ```text
 help
@@ -33,3 +70,16 @@ best
 clear
 exit
 quit
+```
+
+## Current V2 Scope
+
+This version intentionally stays single-symbol. It does not yet include multi-symbol routing, users, portfolios, cash/share settlement, bots, benchmarks, or custom allocators.
+
+## Next Steps
+
+- Replace `-1` sentinel values with `std::optional`
+- Add stronger randomized invariant testing
+- Consider an explicit order-location index with side, price, and iterator
+- Add GitHub Actions CI
+- Start V3 multi-symbol exchange routing after V2 is stable
