@@ -18,7 +18,6 @@ namespace Exch{
 
     bool Exch::Exchange::addSymbol(const Orderbook::Symbol& symbol){
         if(Exchange::symbolToBook.find(symbol)!=Exchange::symbolToBook.end()) return false;
-        // Exchange::symbolToBook.emplace(symbol,Orderbook::OrderBook{});
         auto result = Exchange::symbolToBook.emplace(
             std::piecewise_construct,
             std::forward_as_tuple(symbol),

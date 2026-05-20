@@ -514,6 +514,108 @@ void orderIdDoesNotAdvanceOnInvalidPriceQuantity(){
     CHECK(good.orderId==1);
 }
 
+void checkVisibleExchangeInvariants(Exch::Exchange& ex, const std::vector<Orderbook::Symbol>& symbols){
+    for(auto &sym:symbols){
+        auto buyOrders = ex.getBuyOrders(sym);
+        auto sellOrders = ex.getSellOrders(sym);
+
+        bool firstBuy = true;
+        Orderbook::Price lastBuyPrice = 0;
+        for(auto i:buyOrders){
+            CHECK(i.quantity>0);
+            CHECK(i.price>0);
+            CHECK(i.type==Orderbook::Type::buy);
+            if(firstBuy){
+                CHECK(i.price==ex.getBestBid(sym));
+                firstBuy = false;
+            }
+            else{
+                CHECK(i.price<=lastBuyPrice);
+            }
+            lastBuyPrice = i.price;
+        }
+
+        bool firstSell = true;
+        Orderbook::Price lastSellPrice = 0;
+        for(auto i:sellOrders){
+            CHECK(i.quantity>0);
+            CHECK(i.price>0);
+            CHECK(i.type==Orderbook::Type::sell);
+            if(firstSell){
+                CHECK(i.price==ex.getBestAsk(sym));
+                firstSell = false;
+            }
+            else{
+                CHECK(i.price>=lastSellPrice);
+            }
+            lastSellPrice = i.price;
+        }
+
+        if(buyOrders.empty()) CHECK(ex.getBestBid(sym)==-1);
+        if(sellOrders.empty()) CHECK(ex.getBestAsk(sym)==-1);
+
+        if(!buyOrders.empty() && !sellOrders.empty()){
+            CHECK(ex.getBestBid(sym)<ex.getBestAsk(sym));
+            CHECK(ex.getSpread(sym)==ex.getBestAsk(sym)-ex.getBestBid(sym));
+        }
+        else{
+            CHECK(ex.getSpread(sym)==-1);
+        }
+
+        auto trades = ex.getTrades(sym);
+        for(auto i:trades){
+            CHECK(i.symbol==sym);
+            CHECK(i.buyerOrderId>0);
+            CHECK(i.sellerOrderId>0);
+            CHECK(i.price>0);
+            CHECK(i.quantity>0);
+        }
+    }
+}
+
+void randomizedExchangeOperationsPreserveInvariants(){
+    Exch::Exchange ex;
+    std::vector<Orderbook::Symbol> symbols = {"AAPL","MSFT","TSLA"};
+    std::vector<Orderbook::OrderId> candidateOrderIds;
+    std::mt19937 rng(42);
+
+    for(auto &i:symbols){
+        CHECK(ex.addSymbol(i));
+    }
+
+    for(int step = 0; step<5000; ++step){
+        const auto symbolIndex = static_cast<std::size_t>(rng()%symbols.size());
+        const auto sym = symbols[symbolIndex];
+        const auto op = static_cast<int>(rng()%4);
+        const auto price = static_cast<Orderbook::Price>(90 + (rng()%30));
+        const auto quantity = static_cast<Orderbook::Quantity>(1 + (rng()%10));
+
+        if(op==0){
+            auto result = ex.buy(sym,price,quantity);
+            CHECK(result.accepted);
+            if(result.remainQuantity>0){
+                candidateOrderIds.push_back(result.orderId);
+            }
+        }
+        else if(op==1){
+            auto result = ex.sell(sym,price,quantity);
+            CHECK(result.accepted);
+            if(result.remainQuantity>0){
+                candidateOrderIds.push_back(result.orderId);
+            }
+        }
+        else if(op==2 && !candidateOrderIds.empty()){
+            const auto index = static_cast<std::size_t>(rng()%candidateOrderIds.size());
+            ex.cancelOrder(candidateOrderIds[index]);
+        }
+        else{
+            ex.clearSymbol(sym);
+        }
+
+        checkVisibleExchangeInvariants(ex,symbols);
+    }
+}
+
 
 
 
@@ -562,6 +664,7 @@ int main() {
     RUN_TEST(pricePriorityThroughExchange);
     RUN_TEST(orderIdsDoesNotAdvanceOnRejectedUnknownSymbol);
     RUN_TEST(orderIdDoesNotAdvanceOnInvalidPriceQuantity);
+    RUN_TEST(randomizedExchangeOperationsPreserveInvariants);
 
 
 
