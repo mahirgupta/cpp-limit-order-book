@@ -8,14 +8,14 @@ namespace Orderbook{
     OrderBook::OrderBook(){
         OrderBook::buyOrders.clear();
         OrderBook::sellOrders.clear();
-        OrderBook::curOrderId = 0;
+        // OrderBook::curOrderId = 0;
         OrderBook::orders.clear();
         trade.clear();
     }
 
-    OrderId OrderBook::getCurOrderId() const{
-        return OrderBook::curOrderId;
-    }
+    // OrderId OrderBook::getCurOrderId() const{
+    //     return OrderBook::curOrderId;
+    // }
 
     Price OrderBook::getBestBid() const{
         Price ans{-1};
@@ -45,10 +45,10 @@ namespace Orderbook{
         return ans;
     }
 
-    Orderbook::OrderResult OrderBook::makeBuyOrder(Price price, Quantity quantity){
+    Orderbook::OrderResult OrderBook::makeBuyOrder(Price price, Quantity quantity, OrderId curOrderId){
         if(price<=0 || quantity<=0) return {0,0,{},0};
         Order b;
-        b.orderId = ++curOrderId;
+        b.orderId = curOrderId;
         b.price = price;
         b.quantity = quantity;
         b.type = Type::buy;
@@ -67,10 +67,10 @@ namespace Orderbook{
         
     }
     
-    Orderbook::OrderResult OrderBook::makeSellOrder(Price price, Quantity quantity){
+    Orderbook::OrderResult OrderBook::makeSellOrder(Price price, Quantity quantity, OrderId curOrderId){
         if(price<=0 || quantity<=0) return {0,0,{},0};
         Order b;
-        b.orderId = ++curOrderId;
+        b.orderId = curOrderId;
         b.price = price;
         b.quantity = quantity;
         b.type = Type::sell;
@@ -169,7 +169,7 @@ namespace Orderbook{
         buyOrders.clear();
         sellOrders.clear();
         orders.clear();
-        curOrderId = 0;
+        // curOrderId = 0;
         trade.clear();
     }
 

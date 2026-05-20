@@ -20,7 +20,7 @@ namespace Orderbook{
             std::list<Order>::iterator iterator;
         };
         std::map<OrderId, OrderLocation>orders;
-        Orderbook::OrderId curOrderId;
+        // Orderbook::OrderId curOrderId;
         std::vector<Orderbook::Trade>trade;
 
         std::vector<Orderbook::Trade> match(Type type);
@@ -31,14 +31,14 @@ namespace Orderbook{
     public:
         OrderBook();
         ~OrderBook();
-        OrderBook(const OrderBook&) = delete;
-        OrderBook& operator=(const OrderBook&) = delete;
+        // OrderBook(const OrderBook&) = delete;
+        // OrderBook& operator=(const OrderBook&) = delete;
 
-        OrderId getCurOrderId() const;
+        // OrderId getCurOrderId() const;
 
-        Orderbook::OrderResult makeBuyOrder(Price price, Quantity quantity);
+        Orderbook::OrderResult makeBuyOrder(Price price, Quantity quantity, OrderId curOrderId);
         
-        Orderbook::OrderResult makeSellOrder(Price price, Quantity quantity);
+        Orderbook::OrderResult makeSellOrder(Price price, Quantity quantity, OrderId curOrderId);
 
         bool cancelOrder(OrderId id);
 

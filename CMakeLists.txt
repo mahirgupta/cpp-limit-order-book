@@ -26,6 +26,7 @@ target_include_directories(orderbook
 add_executable(orderbook_cli
     src/main.cpp
     src/Cli.cpp
+    src/Exchange.cpp
 )
 
 target_link_libraries(orderbook_cli

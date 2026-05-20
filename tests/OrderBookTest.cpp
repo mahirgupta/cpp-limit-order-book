@@ -24,8 +24,8 @@
 void test_no_match() {
     Orderbook::OrderBook book;
 
-    auto r1 = book.makeBuyOrder(100,10);
-    auto r2 = book.makeSellOrder(105,5);
+    auto r1 = book.makeBuyOrder(100,10,1);
+    auto r2 = book.makeSellOrder(105,5,2);
 
     CHECK(r1.trade.empty());
     CHECK(r2.trade.empty());
@@ -39,13 +39,13 @@ void test_no_match() {
 
 void test_invalid_buy_order(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(0,10);
+    auto r1 = book.makeBuyOrder(0,10,1);
     CHECK(r1.accepted==0 && r1.orderId==0 && r1.trade.empty() && r1.remainQuantity==0);
-    auto r2 = book.makeBuyOrder(-1,10);
+    auto r2 = book.makeBuyOrder(-1,10,2);
     CHECK(r2.accepted==0 && r2.orderId==0 && r2.trade.empty() && r2.remainQuantity==0);
-    auto r3 = book.makeBuyOrder(100,0);
+    auto r3 = book.makeBuyOrder(100,0,3);
     CHECK(r3.accepted==0 && r3.orderId==0 && r3.trade.empty() && r3.remainQuantity==0);
-    auto r4 = book.makeBuyOrder(100,-1);
+    auto r4 = book.makeBuyOrder(100,-1,4);
     CHECK(r4.accepted==0 && r4.orderId==0 && r4.trade.empty() && r4.remainQuantity==0);
     CHECK(book.getBestBid()==-1);
     CHECK(book.getBuyOrders().empty());
@@ -54,13 +54,13 @@ void test_invalid_buy_order(){
 
 void test_invalid_sell_order(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeSellOrder(0,10);
+    auto r1 = book.makeSellOrder(0,10,1);
     CHECK(r1.accepted==0 && r1.orderId==0 && r1.trade.empty() && r1.remainQuantity==0);
-    auto r2 = book.makeSellOrder(-1,10);
+    auto r2 = book.makeSellOrder(-1,10,2);
     CHECK(r2.accepted==0 && r2.orderId==0 && r2.trade.empty() && r2.remainQuantity==0);
-    auto r3 = book.makeSellOrder(100,0);
+    auto r3 = book.makeSellOrder(100,0,3);
     CHECK(r3.accepted==0 && r3.orderId==0 && r3.trade.empty() && r3.remainQuantity==0);
-    auto r4 = book.makeSellOrder(100,-1);
+    auto r4 = book.makeSellOrder(100,-1,4);
     CHECK(r4.accepted==0 && r4.orderId==0 && r4.trade.empty() && r4.remainQuantity==0);
     CHECK(book.getBestAsk()==-1);
     CHECK(book.getSellOrders().empty());
@@ -69,7 +69,7 @@ void test_invalid_sell_order(){
 
 void test_accept_valid_buy(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,10);
+    auto r1 = book.makeBuyOrder(100,10,1);
     CHECK(r1.accepted==1 && r1.orderId!=0 && r1.trade.empty() && r1.remainQuantity==10);
     CHECK(book.getBestBid()==100);
     CHECK(book.getBestAsk()==-1);
@@ -78,7 +78,7 @@ void test_accept_valid_buy(){
 
 void test_accept_valid_sell(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeSellOrder(100,10);
+    auto r1 = book.makeSellOrder(100,10,1);
     CHECK(r1.accepted==1 && r1.orderId!=0 && r1.trade.empty() && r1.remainQuantity==10);
     CHECK(book.getBestAsk()==100);
     CHECK(book.getBestBid()==-1);
@@ -89,10 +89,10 @@ void test_accept_valid_sell(){
 
 void test_buy_crosses_sell(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeSellOrder(100,10);
+    auto r1 = book.makeSellOrder(100,10,1);
     CHECK(r1.trade.empty());
     CHECK(book.getBestAsk()==100);
-    auto r2 = book.makeBuyOrder(105,4);
+    auto r2 = book.makeBuyOrder(105,4,2);
     CHECK(r2.accepted==1);
     CHECK(!r2.trade.empty());
     CHECK(r2.trade.size()==1);
@@ -110,10 +110,10 @@ void test_buy_crosses_sell(){
 
 void test_sell_crosses_buy(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,10);
+    auto r1 = book.makeBuyOrder(100,10,1);
     CHECK(r1.trade.empty());
     CHECK(book.getBestBid()==100);
-    auto r2 = book.makeSellOrder(95,4);
+    auto r2 = book.makeSellOrder(95,4,2);
     CHECK(r2.accepted==1);
     CHECK(!r2.trade.empty());
     CHECK(r2.trade.size()==1);
@@ -131,10 +131,10 @@ void test_sell_crosses_buy(){
 
 void test_full_fill(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,10);
+    auto r1 = book.makeBuyOrder(100,10,1);
     CHECK(r1.trade.empty());
     CHECK(book.getBestBid()==100);
-    auto r2 = book.makeSellOrder(100,10);
+    auto r2 = book.makeSellOrder(100,10,2);
     CHECK(r2.accepted==1);
     CHECK(!r2.trade.empty());
     CHECK(r2.trade.size()==1);
@@ -150,10 +150,10 @@ void test_full_fill(){
 
 void test_partial_fill_resting(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeSellOrder(100,10);
+    auto r1 = book.makeSellOrder(100,10,1);
     CHECK(r1.trade.empty());
     CHECK(book.getBestAsk()==100);
-    auto r2 = book.makeBuyOrder(100,4);
+    auto r2 = book.makeBuyOrder(100,4,2);
     CHECK(r2.accepted==1);
     CHECK(!r2.trade.empty());
     CHECK(r2.trade.size()==1);
@@ -170,10 +170,10 @@ void test_partial_fill_resting(){
 
 void test_partial_fill_incoming(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeSellOrder(100,4);
+    auto r1 = book.makeSellOrder(100,4,1);
     CHECK(r1.trade.empty());
     CHECK(book.getBestAsk()==100);
-    auto r2 = book.makeBuyOrder(100,10);
+    auto r2 = book.makeBuyOrder(100,10,2);
     CHECK(r2.accepted==1);
     CHECK(!r2.trade.empty());
     CHECK(r2.trade.size()==1);
@@ -190,12 +190,12 @@ void test_partial_fill_incoming(){
 
 void test_FIFO_same_price_buy(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,5);
-    auto r2 = book.makeBuyOrder(100,7);
+    auto r1 = book.makeBuyOrder(100,5,1);
+    auto r2 = book.makeBuyOrder(100,7,2);
     CHECK(r1.trade.empty());
     CHECK(r2.trade.empty());
     CHECK(book.getBestBid()==100);
-    auto r3 = book.makeSellOrder(100,6);
+    auto r3 = book.makeSellOrder(100,6,3);
     CHECK(!r3.trade.empty());
     CHECK(r3.trade.size()==2);
     CHECK(r3.trade[0].buyerOrderId == r1.orderId);
@@ -216,12 +216,12 @@ void test_FIFO_same_price_buy(){
 
 void test_FIFO_same_price_sell(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeSellOrder(100,5);
-    auto r2 = book.makeSellOrder(100,7);
+    auto r1 = book.makeSellOrder(100,5,1);
+    auto r2 = book.makeSellOrder(100,7,2);
     CHECK(r1.trade.empty());
     CHECK(r2.trade.empty());
     CHECK(book.getBestAsk()==100);
-    auto r3 = book.makeBuyOrder(100,6);
+    auto r3 = book.makeBuyOrder(100,6,3);
     CHECK(!r3.trade.empty());
     CHECK(r3.trade.size()==2);
     CHECK(r3.trade[0].sellerOrderId == r1.orderId);
@@ -242,12 +242,12 @@ void test_FIFO_same_price_sell(){
 
 void test_best_price_priority_before_FIFO(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(99,10);
-    auto r2 = book.makeBuyOrder(101,10);
+    auto r1 = book.makeBuyOrder(99,10,1);
+    auto r2 = book.makeBuyOrder(101,10,2);
     CHECK(r1.trade.empty());
     CHECK(r2.trade.empty());
     CHECK(book.getBestBid()==101);
-    auto r3 = book.makeSellOrder(99,5);
+    auto r3 = book.makeSellOrder(99,5,3);
     CHECK(!r3.trade.empty());
     CHECK(r3.trade.size()==1);
     CHECK(r3.trade[0].buyerOrderId == r2.orderId);
@@ -267,14 +267,14 @@ void test_best_price_priority_before_FIFO(){
 
 void test_FIFO_within_same_price(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,5);
-    auto r2 = book.makeBuyOrder(101,5);
-    auto r3 = book.makeBuyOrder(100,5);
+    auto r1 = book.makeBuyOrder(100,5,1);
+    auto r2 = book.makeBuyOrder(101,5,2);
+    auto r3 = book.makeBuyOrder(100,5,3);
     CHECK(r1.trade.empty());
     CHECK(r2.trade.empty());
     CHECK(r3.trade.empty());
     CHECK(book.getBestBid()==101);
-    auto r4 = book.makeSellOrder(100,6);
+    auto r4 = book.makeSellOrder(100,6,4);
     CHECK(!r4.trade.empty());
     CHECK(r4.trade.size()==2);
     CHECK(r4.trade[0].buyerOrderId == r2.orderId);
@@ -297,14 +297,14 @@ void test_FIFO_within_same_price(){
 
 void test_incoming_buy_sweeps_multiple_ask(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeSellOrder(100,5);
-    auto r2 = book.makeSellOrder(101,5);
-    auto r3 = book.makeSellOrder(102,5);
+    auto r1 = book.makeSellOrder(100,5,1);
+    auto r2 = book.makeSellOrder(101,5,2);
+    auto r3 = book.makeSellOrder(102,5,3);
     CHECK(r1.trade.empty());
     CHECK(r2.trade.empty());
     CHECK(r3.trade.empty());
     CHECK(book.getBestAsk()==100);
-    auto r4 = book.makeBuyOrder(102,12);
+    auto r4 = book.makeBuyOrder(102,12,4);
     CHECK(!r4.trade.empty());
     CHECK(r4.trade.size()==3);
     CHECK(r4.remainQuantity==0);
@@ -339,14 +339,14 @@ void test_incoming_buy_sweeps_multiple_ask(){
 
 void test_incoming_sell_sweeps_multiple_bid(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(102,5);
-    auto r2 = book.makeBuyOrder(101,5);
-    auto r3 = book.makeBuyOrder(100,5);
+    auto r1 = book.makeBuyOrder(102,5,1);
+    auto r2 = book.makeBuyOrder(101,5,2);
+    auto r3 = book.makeBuyOrder(100,5,3);
     CHECK(r1.trade.empty());
     CHECK(r2.trade.empty());
     CHECK(r3.trade.empty());
     CHECK(book.getBestBid()==102);
-    auto r4 = book.makeSellOrder(100,12);
+    auto r4 = book.makeSellOrder(100,12,4);
     CHECK(!r4.trade.empty());
     CHECK(r4.trade.size()==3);
     CHECK(r4.remainQuantity==0);
@@ -381,12 +381,12 @@ void test_incoming_sell_sweeps_multiple_bid(){
 
 void test_incoming_order_stops_when_no_longer_crossing(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeSellOrder(100,5);
-    auto r2 = book.makeSellOrder(105,5);
+    auto r1 = book.makeSellOrder(100,5,1);
+    auto r2 = book.makeSellOrder(105,5,2);
     CHECK(r1.trade.empty());
     CHECK(r2.trade.empty());
     CHECK(book.getBestAsk()==100);
-    auto r3 = book.makeBuyOrder(102,10);
+    auto r3 = book.makeBuyOrder(102,10,3);
     CHECK(!r3.trade.empty());
     CHECK(r3.trade.size()==1);
     CHECK(r3.remainQuantity==5);
@@ -421,7 +421,7 @@ void test_incoming_order_stops_when_no_longer_crossing(){
 
 void test_cancel_active_buy_order(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,10);
+    auto r1 = book.makeBuyOrder(100,10,1);
     CHECK(r1.trade.empty());
     CHECK(book.getBestBid()==100);
     auto r2 = book.cancelOrder(r1.orderId);
@@ -432,7 +432,7 @@ void test_cancel_active_buy_order(){
 
 void test_cancel_active_sell_order(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeSellOrder(100,10);
+    auto r1 = book.makeSellOrder(100,10,1);
     CHECK(r1.trade.empty());
     CHECK(book.getBestAsk()==100);
     auto r2 = book.cancelOrder(r1.orderId);
@@ -451,8 +451,8 @@ void test_cancel_missing_order(){
 
 void test_cancel_partially_filled_resting_order(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,10);
-    auto r2 = book.makeSellOrder(100,4);
+    auto r1 = book.makeBuyOrder(100,10,1);
+    auto r2 = book.makeSellOrder(100,4,2);
     CHECK(book.getBestAsk()==-1);
     CHECK(book.getBestBid()==100);
     CHECK(book.getBuyOrders()[0].quantity==6);
@@ -470,8 +470,8 @@ void test_cancel_partially_filled_resting_order(){
 
 void test_cancel_fully_filled_order(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,10);
-    auto r2 = book.makeSellOrder(100,10);
+    auto r1 = book.makeBuyOrder(100,10,1);
+    auto r2 = book.makeSellOrder(100,10,2);
     CHECK(!r2.trade.empty());
     CHECK(book.getBestAsk()==-1);
     CHECK(book.getBestBid()==-1);
@@ -484,8 +484,8 @@ void test_cancel_fully_filled_order(){
 
 void test_cancel_one_order_at_price_level_with_multiple_orders(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,5);
-    auto r2 = book.makeBuyOrder(100,7);
+    auto r1 = book.makeBuyOrder(100,5,1);
+    auto r2 = book.makeBuyOrder(100,7,2);
     CHECK(book.getBestBid()==100);
     CHECK(book.getBuyOrders()[0].quantity==5);
     CHECK(book.getBuyOrders()[1].quantity==7);
@@ -509,9 +509,9 @@ void test_cancel_one_order_at_price_level_with_multiple_orders(){
 
 void test_best_bid_updates_correctly(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(99,2);
-    auto r2 = book.makeBuyOrder(101,2);
-    auto r3 = book.makeBuyOrder(100,2);
+    auto r1 = book.makeBuyOrder(99,2,1);
+    auto r2 = book.makeBuyOrder(101,2,2);
+    auto r3 = book.makeBuyOrder(100,2,3);
     CHECK(book.getBestBid()==101);
     auto r4 = book.cancelOrder(r2.orderId);
     CHECK(r4==1);
@@ -520,9 +520,9 @@ void test_best_bid_updates_correctly(){
 
 void test_best_ask_updates_correctly(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeSellOrder(105,2);
-    auto r2 = book.makeSellOrder(103,2);
-    auto r3 = book.makeSellOrder(104,2);
+    auto r1 = book.makeSellOrder(105,2,1);
+    auto r2 = book.makeSellOrder(103,2,2);
+    auto r3 = book.makeSellOrder(104,2,3);
     CHECK(book.getBestAsk()==103);
     auto r4 = book.cancelOrder(r2.orderId);
     CHECK(r4==1);
@@ -531,28 +531,28 @@ void test_best_ask_updates_correctly(){
 
 void test_spread_calculation(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,1);
-    auto r2 = book.makeSellOrder(105,2);
+    auto r1 = book.makeBuyOrder(100,1,1);
+    auto r2 = book.makeSellOrder(105,2,2);
     CHECK(book.getSpread()==5);
 
     book.clear();
     CHECK(book.getSpread()==-1);
-    auto r3 = book.makeBuyOrder(100,1);
+    auto r3 = book.makeBuyOrder(100,1,3);
     CHECK(book.getSpread()==-1);
     
     book.clear();
 
-    auto r4 = book.makeSellOrder(99,1);
+    auto r4 = book.makeSellOrder(99,1,4);
     CHECK(book.getSpread()==-1);
 
 }
 
 void test_clear_book(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,1);
-    auto r2 = book.makeSellOrder(105,2);
-    auto r3 = book.makeBuyOrder(101,3);
-    auto r4  = book.makeSellOrder(100,1);
+    auto r1 = book.makeBuyOrder(100,1,1);
+    auto r2 = book.makeSellOrder(105,2,2);
+    auto r3 = book.makeBuyOrder(101,3,3);
+    auto r4  = book.makeSellOrder(100,1,4);
 
     CHECK(book.getBestAsk()==105);
     CHECK(book.getBestBid()==101);
@@ -564,40 +564,40 @@ void test_clear_book(){
     CHECK(book.getBuyOrders().empty());
     CHECK(book.getSellOrders().empty());
     CHECK(book.getTrade().empty());
-    CHECK(book.getCurOrderId()==0);
+    // CHECK(book.getCurOrderId()==0);
 }
 
-void test_order_id_increments(){
-     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,1);
-    auto r2 = book.makeSellOrder(105,2);
-    auto r3 = book.makeBuyOrder(101,3);
-    auto r4  = book.makeSellOrder(100,1);
+// void test_order_id_increments(){
+//      Orderbook::OrderBook book;
+//     auto r1 = book.makeBuyOrder(100,1,1);
+//     auto r2 = book.makeSellOrder(105,2,2);
+//     auto r3 = book.makeBuyOrder(101,3,3);
+//     auto r4  = book.makeSellOrder(100,1,4);
 
-    CHECK(book.getCurOrderId()==4);
+//     // CHECK(book.getCurOrderId()==4);
 
-    book.clear();
-    auto r5 = book.makeBuyOrder(100,1);
-    CHECK(book.getCurOrderId()==1);
-}
+//     book.clear();
+//     auto r5 = book.makeBuyOrder(100,1,5);
+//     // CHECK(book.getCurOrderId()==1);
+// }
 
 
 void test_accepted_result_for_resting_order(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,10);
+    auto r1 = book.makeBuyOrder(100,10,1);
     CHECK(r1.accepted==1 && r1.orderId==1 && r1.trade.empty() && r1.remainQuantity==10);
 }
 
 void test_rejected_result_shape(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,0);
+    auto r1 = book.makeBuyOrder(100,0,2);
     CHECK(r1.accepted==0 && r1.orderId==0 && r1.trade.empty() && r1.remainQuantity==0);
 }
 
 void test_no_empty_price_levels_after_full_fill(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,10);
-    auto r2 = book.makeSellOrder(100,10);
+    auto r1 = book.makeBuyOrder(100,10,1);
+    auto r2 = book.makeSellOrder(100,10,2);
     CHECK(book.getBestAsk()==-1);
     CHECK(book.getBestBid()==-1);
     CHECK(book.getBuyOrders().empty());
@@ -606,9 +606,9 @@ void test_no_empty_price_levels_after_full_fill(){
 
 void test_no_zero_quantity_orders_visible(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,5);
-    auto r2 = book.makeBuyOrder(101,5);
-    auto r3 = book.makeSellOrder(99,5);
+    auto r1 = book.makeBuyOrder(100,5,1);
+    auto r2 = book.makeBuyOrder(101,5,2);
+    auto r3 = book.makeSellOrder(99,5,3);
     CHECK(book.getSellOrders().empty());
     auto b = book.getBuyOrders();
     for(auto i:b){
@@ -623,19 +623,19 @@ void test_no_zero_quantity_orders_visible(){
 
 void test_trade_quantities_always_positive(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,5);
-    auto s5 = book.makeSellOrder(103,3);
-    auto r2 = book.makeBuyOrder(101,6);
-    auto r3 = book.makeBuyOrder(100,5);
-    auto s4 = book.makeSellOrder(99,5);
-    auto s3 = book.makeSellOrder(110,2);
-    auto r4 = book.makeBuyOrder(99,5);
-    auto r5 = book.makeBuyOrder(101,8);
-    auto s1 = book.makeSellOrder(100,3);
-    auto r6 = book.makeBuyOrder(105,1);
+    auto r1 = book.makeBuyOrder(100,5,1);
+    auto s5 = book.makeSellOrder(103,3,2);
+    auto r2 = book.makeBuyOrder(101,6,3);
+    auto r3 = book.makeBuyOrder(100,5,4);
+    auto s4 = book.makeSellOrder(99,5,5);
+    auto s3 = book.makeSellOrder(110,2,6);
+    auto r4 = book.makeBuyOrder(99,5,7);
+    auto r5 = book.makeBuyOrder(101,8,8);
+    auto s1 = book.makeSellOrder(100,3,9);
+    auto r6 = book.makeBuyOrder(105,1,10);
 
-    auto s2 = book.makeSellOrder(105,1);
-    auto s6 = book.makeSellOrder(102,1);
+    auto s2 = book.makeSellOrder(105,1,11);
+    auto s6 = book.makeSellOrder(102,1,12);
 
 
     auto t = book.getTrade();
@@ -649,19 +649,19 @@ void test_trade_quantities_always_positive(){
 
 void test_trade_price_always_positive(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,5);
-    auto s5 = book.makeSellOrder(103,3);
-    auto r2 = book.makeBuyOrder(101,6);
-    auto r3 = book.makeBuyOrder(100,5);
-    auto s4 = book.makeSellOrder(99,5);
-    auto s3 = book.makeSellOrder(110,2);
-    auto r4 = book.makeBuyOrder(99,5);
-    auto r5 = book.makeBuyOrder(101,8);
-    auto s1 = book.makeSellOrder(100,3);
-    auto r6 = book.makeBuyOrder(105,1);
+    auto r1 = book.makeBuyOrder(100,5,1);
+    auto s5 = book.makeSellOrder(103,3,2);
+    auto r2 = book.makeBuyOrder(101,6,3);
+    auto r3 = book.makeBuyOrder(100,5,4);
+    auto s4 = book.makeSellOrder(99,5,5);
+    auto s3 = book.makeSellOrder(110,2,6);
+    auto r4 = book.makeBuyOrder(99,5,7);
+    auto r5 = book.makeBuyOrder(101,8,8);
+    auto s1 = book.makeSellOrder(100,3,9);
+    auto r6 = book.makeBuyOrder(105,1,10);
 
-    auto s2 = book.makeSellOrder(105,1);
-    auto s6 = book.makeSellOrder(102,1);
+    auto s2 = book.makeSellOrder(105,1,11);
+    auto s6 = book.makeSellOrder(102,1,12);
 
 
     auto t = book.getTrade();
@@ -675,19 +675,19 @@ void test_trade_price_always_positive(){
 
 void test_trade_book_always_sorted(){
     Orderbook::OrderBook book;
-    auto r1 = book.makeBuyOrder(100,5);
-    auto s5 = book.makeSellOrder(103,3);
-    auto r2 = book.makeBuyOrder(101,6);
-    auto r3 = book.makeBuyOrder(100,5);
-    auto s4 = book.makeSellOrder(99,5);
-    auto s3 = book.makeSellOrder(110,2);
-    auto r4 = book.makeBuyOrder(99,5);
-    auto r5 = book.makeBuyOrder(101,8);
-    auto s1 = book.makeSellOrder(100,3);
-    auto r6 = book.makeBuyOrder(105,1);
+    auto r1 = book.makeBuyOrder(100,5,1);
+    auto s5 = book.makeSellOrder(103,3,2);
+    auto r2 = book.makeBuyOrder(101,6,3);
+    auto r3 = book.makeBuyOrder(100,5,4);
+    auto s4 = book.makeSellOrder(99,5,5);
+    auto s3 = book.makeSellOrder(110,2,6);
+    auto r4 = book.makeBuyOrder(99,5,7);
+    auto r5 = book.makeBuyOrder(101,8,8);
+    auto s1 = book.makeSellOrder(100,3,9);
+    auto r6 = book.makeBuyOrder(105,1,10);
 
-    auto s2 = book.makeSellOrder(105,1);
-    auto s6 = book.makeSellOrder(102,1);
+    auto s2 = book.makeSellOrder(105,1,11);
+    auto s6 = book.makeSellOrder(102,1,12);
 
 
 
@@ -712,20 +712,20 @@ void test_randomized_operations_preserve_invariants(){
     Orderbook::OrderBook book;
     std::vector<Orderbook::OrderId> candidateOrderIds;
     std::mt19937 rng(42);
-
+    Orderbook::OrderId curOrderId = 0;
     for(int step = 0; step < 5000; ++step){
         const auto op = static_cast<int>(rng() % 3);
         const auto price = static_cast<Orderbook::Price>(90 + (rng() % 25));
         const auto quantity = static_cast<Orderbook::Quantity>(1 + (rng() % 10));
 
         if(op == 0){
-            auto result = book.makeBuyOrder(price, quantity);
+            auto result = book.makeBuyOrder(price, quantity,++curOrderId);
             if(result.accepted && result.remainQuantity > 0){
                 candidateOrderIds.push_back(result.orderId);
             }
         }
         else if(op == 1){
-            auto result = book.makeSellOrder(price, quantity);
+            auto result = book.makeSellOrder(price, quantity,++curOrderId);
             if(result.accepted && result.remainQuantity > 0){
                 candidateOrderIds.push_back(result.orderId);
             }
@@ -771,7 +771,7 @@ int main() {
     RUN_TEST(test_best_ask_updates_correctly);
     RUN_TEST(test_spread_calculation);
     RUN_TEST(test_clear_book);
-    RUN_TEST(test_order_id_increments);
+    // RUN_TEST(test_order_id_increments);
     RUN_TEST(test_accepted_result_for_resting_order);
     RUN_TEST(test_rejected_result_shape);
     RUN_TEST(test_no_empty_price_levels_after_full_fill);
