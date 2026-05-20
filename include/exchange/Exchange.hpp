@@ -5,6 +5,7 @@
 #include<map>
 #include<exchange/ExchangeType.hpp>
 #include<orderBook/OrderBook.hpp>
+#include<tuple>
 
 namespace Exch{
     
@@ -18,8 +19,10 @@ namespace Exch{
 
 
     public:
+
+        Exchange();
         
-        Orderbook::Symbol getSymbolfromid(const Orderbook::OrderId id);
+        Orderbook::Symbol getSymbolfromid(const Orderbook::OrderId id) const;
 
         bool addSymbol(const Orderbook::Symbol& symbol);
 
@@ -31,7 +34,7 @@ namespace Exch{
         
         Exch::ExchangeOrderResult sell(const Orderbook::Symbol& symbol, Orderbook::Price price, Orderbook::Quantity quantity );
        
-        bool cancelOrder(Orderbook::OrderId orderId);
+        Exch::CancelResult cancelOrder(Orderbook::OrderId orderId);
 
         std::vector<Orderbook::Order> getBuyOrders(const Orderbook::Symbol& symbol) const;
         

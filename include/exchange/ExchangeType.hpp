@@ -12,7 +12,7 @@ namespace Exch{
         Orderbook::Quantity quantity;
     };
 
-    
+
     struct ExchangeOrderResult{
         bool accepted;
         std::string message;
@@ -20,6 +20,12 @@ namespace Exch{
         Orderbook::OrderId orderId;
         std::vector<Exch::ExchangeTrade>trades;
         Orderbook::Quantity remainQuantity;
+    };
+
+    struct CancelResult{
+        bool cancelled;
+        Orderbook::Symbol symbol;
+        std::string message;
     };
 
 }

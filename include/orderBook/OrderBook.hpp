@@ -31,8 +31,8 @@ namespace Orderbook{
     public:
         OrderBook();
         ~OrderBook();
-        // OrderBook(const OrderBook&) = delete;
-        // OrderBook& operator=(const OrderBook&) = delete;
+        OrderBook(const OrderBook&) = delete;
+        OrderBook& operator=(const OrderBook&) = delete;
 
         // OrderId getCurOrderId() const;
 
@@ -51,6 +51,8 @@ namespace Orderbook{
         void clear();
 
         std::vector<Order> getBuyOrders() const;
+
+        bool checkOrder(Orderbook::OrderId id)const;
 
         std::vector<Order> getSellOrders() const;
 

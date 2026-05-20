@@ -255,6 +255,8 @@ namespace Orderbook{
     }
 
 
-
+    bool OrderBook::checkOrder(Orderbook::OrderId id)const{
+        return (OrderBook::orders.find(id)!=OrderBook::orders.end());
+    }
 
 }

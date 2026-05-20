@@ -169,6 +169,9 @@ void Cli::run(Exch::Exchange &ex){
                     else if(qn<=0){
                         std::cout<<"Error..! Quantity is not positive Integer"<<std::endl;
                     }
+                    else if(!ex.hasSymbol(sym)){
+                        std::cout<<"Error..! Unknown Symbol "<<sym<<std::endl;
+                    }
 
                     else{
                         Exch::ExchangeOrderResult ok = ex.buy(sym,myInt, qn);
@@ -197,6 +200,10 @@ void Cli::run(Exch::Exchange &ex){
                         
                     }
                     
+                    else if(!ex.hasSymbol(sym)){
+                        std::cout<<"Error..! Unknown Symbol "<<sym<<std::endl;
+                    }
+
                     else{
                         Exch::ExchangeOrderResult ok = ex.sell(sym,myInt,qn);
                         printOrderResult(ok,"sellOrder");
@@ -216,9 +223,9 @@ void Cli::run(Exch::Exchange &ex){
                     std::cout<<"Error..! Order id must be a positive integer"<<std::endl;
                 }
                 else{
-                    bool ok = ex.cancelOrder(myInt);
-                    if(ok>0){
-                        const Orderbook::Symbol sym = ex.getSymbolfromid(myInt);
+                    auto ok = ex.cancelOrder(myInt);
+                    if(ok.cancelled){
+                        const Orderbook::Symbol sym = ok.symbol;
                         std::cout<<"Successfully canceld the order id: "<<myInt<<" at "<<sym<<std::endl;
                         printBuyOrderList(ex,sym);
                         printSellOrderList(ex,sym);
@@ -232,24 +239,40 @@ void Cli::run(Exch::Exchange &ex){
 
         else if (words[0]=="book" && words.size()==2){
             const Orderbook::Symbol sym = words[1];
-            printBuyOrderList(ex,sym);
-            printSellOrderList(ex,sym);
+            if(!ex.hasSymbol(sym)){
+                std::cout<<"Error..! Unknown Symbol "<<sym<<std::endl;
+            }
+            else{
+                printBuyOrderList(ex,sym);
+                printSellOrderList(ex,sym);
+            }
         }
         
         else if(words[0]=="trades" && words.size()==2){
             const Orderbook::Symbol sym = words[1];
-            printTrade(ex.getTrades(sym));
+            if(!ex.hasSymbol(sym)){
+                std::cout<<"Error..! Unknown Symbol "<<sym<<std::endl;
+            }
+            else printTrade(ex.getTrades(sym));
         }
         
         else if(words[0]=="best" && words.size()==2){
             const Orderbook::Symbol sym = words[1];
-            printBest(ex,sym);
+            if(!ex.hasSymbol(sym)){
+                std::cout<<"Error..! Unknown Symbol "<<sym<<std::endl;
+            }
+            else printBest(ex,sym);
         }
         
         else if(words[0]=="clear" && words.size()==2){
             const Orderbook::Symbol sym = words[1];
-            ex.clearSymbol(sym);
-            std::cout<<"Success "<<sym<<" Book got cleared"<<std::endl;
+            if(!ex.hasSymbol(sym)){
+                std::cout<<"Error..! Unknown Symbol "<<sym<<std::endl;
+            }
+            else{
+                ex.clearSymbol(sym);
+                std::cout<<"Success "<<sym<<" Book got cleared"<<std::endl;
+            }
         }
 
         else if(words[0]=="clear_all" && words.size()==1){

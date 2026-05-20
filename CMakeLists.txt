@@ -16,6 +16,7 @@ endif()
 
 add_library(orderbook
     src/OrderBook.cpp
+    src/Exchange.cpp
 )
 
 target_include_directories(orderbook
@@ -26,7 +27,6 @@ target_include_directories(orderbook
 add_executable(orderbook_cli
     src/main.cpp
     src/Cli.cpp
-    src/Exchange.cpp
 )
 
 target_link_libraries(orderbook_cli
@@ -44,3 +44,14 @@ target_link_libraries(orderbook_tests
 )
 
 add_test(NAME orderbook_tests COMMAND orderbook_tests)
+
+add_executable(exchange_tests
+    tests/ExchangeTest.cpp
+)
+
+target_link_libraries(exchange_tests
+    PRIVATE
+        orderbook
+)
+
+add_test(NAME exchange_tests COMMAND exchange_tests)
