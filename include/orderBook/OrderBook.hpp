@@ -5,6 +5,7 @@
 #include<list>
 #include<orderBook/Order.hpp>
 #include<orderBook/Trade.hpp>
+#include<optional>
 
 
 
@@ -42,11 +43,11 @@ namespace Orderbook{
 
         bool cancelOrder(OrderId id);
 
-        Price getBestBid() const;
+        std::optional<Price> getBestBid() const;
 
-        Price getBestAsk() const;
+        std::optional<Price> getBestAsk() const;
 
-        Price getSpread() const;
+        std::optional<Price> getSpread() const;
 
         void clear();
 

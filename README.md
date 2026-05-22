@@ -18,8 +18,9 @@ cancels, best bid/ask, book views, and trades by symbol.
 - Multi-level sweeps
 - Cancel active orders by global order id
 - Symbol specific trade history
-- Best bid, best ask, and spread per symbol
+- Best bid, best ask, and spread per symbol using `std::optional`
 - Clear one symbol or clear all books
+- `OrderBook` and `Exchange` invariant checks
 - OrderBook and Exchange regression tests
 - Randomized invariant style tests
 
@@ -119,12 +120,14 @@ Current focus is:
 - clean multi-symbol routing
 - global order id cancel routing
 - symbol level book/trade queries
+- no `-1` sentinel for best bid, best ask, or spread
+- invariant checks after order, cancel, and clear flows
 - deterministic tests for exchange behavior
 
 ## Next Steps
 
-- Add `Exchange::checkInvariants()`
-- Replace `-1` sentinel values with `std::optional`
+- Initialize and tighten result/status fields
+- Add richer cancel/order status enums later
 - Add GitHub Actions CI
 - Update naming/style later if needed
 - Start V4 users, portfolios, cash reservation, and settlement after V3 is stable

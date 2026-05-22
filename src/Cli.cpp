@@ -9,7 +9,7 @@
 
 
 void Cli::printBuyOrderList(Exch::Exchange &ex, const Orderbook::Symbol& sym){
-    if(ex.getBestBid(sym)==-1){
+    if(!ex.getBestBid(sym)){
         std::cout<<"No pending Bid ...\n";
         return ;
     }
@@ -24,7 +24,7 @@ void Cli::printBuyOrderList(Exch::Exchange &ex, const Orderbook::Symbol& sym){
 }
 
 void Cli::printSellOrderList(Exch::Exchange& ex, const Orderbook::Symbol& sym){
-    if(ex.getBestAsk(sym)==-1){
+    if(!ex.getBestAsk(sym)){
         std::cout<<"No pending Ask...\n";
         return ;
     }
@@ -67,12 +67,12 @@ void Cli::printSymbol(const std::vector<std::string>& s){
 
 void Cli::printBest(const Exch::Exchange& ex, const Orderbook::Symbol& sym){
     std::cout<<"Best Bid\tBest Ask\tSpread\n";
-    if(ex.getBestBid(sym)==-1)std::cout<<"none\t";
-    else std::cout<<ex.getBestBid(sym)<<"\t";
-    if(ex.getBestAsk(sym)==-1)std::cout<<"none\t";
-    else std::cout<<ex.getBestAsk(sym)<<"\t";
-    if(ex.getSpread(sym)==-1)std::cout<<"none\n";
-    else std::cout<<ex.getSpread(sym)<<"\n";
+    if(!ex.getBestBid(sym))std::cout<<"none\t";
+    else std::cout<<ex.getBestBid(sym).value()<<"\t";
+    if(!ex.getBestAsk(sym))std::cout<<"none\t";
+    else std::cout<<ex.getBestAsk(sym).value()<<"\t";
+    if(!ex.getSpread(sym))std::cout<<"none\n";
+    else std::cout<<ex.getSpread(sym).value()<<"\n";
     std::cout<<"\n";
     return;
 }

@@ -6,6 +6,7 @@
 #include<exchange/ExchangeType.hpp>
 #include<orderBook/OrderBook.hpp>
 #include<tuple>
+#include<set>
 
 namespace Exch{
     
@@ -21,8 +22,12 @@ namespace Exch{
     public:
 
         Exchange();
+
+        Exchange(const Exchange&) = delete;
         
-        Orderbook::Symbol getSymbolfromid(const Orderbook::OrderId id) const;
+        Exchange& operator=(const Exchange&) = delete;
+        
+        std::optional<Orderbook::Symbol> getSymbolFromId(const Orderbook::OrderId id) const;
 
         bool addSymbol(const Orderbook::Symbol& symbol);
 
@@ -40,17 +45,19 @@ namespace Exch{
         
         std::vector<Orderbook::Order> getSellOrders(const Orderbook::Symbol& symbol) const;
         
-        Orderbook::Price getBestBid(const Orderbook::Symbol& symbol) const;
+        std::optional<Orderbook::Price> getBestBid(const Orderbook::Symbol& symbol) const;
 
-        Orderbook::Price getBestAsk(const Orderbook::Symbol& symbol) const;
+        std::optional<Orderbook::Price> getBestAsk(const Orderbook::Symbol& symbol) const;
         
-        Orderbook::Price getSpread(const Orderbook::Symbol& symbol) const;
+        std::optional<Orderbook::Price> getSpread(const Orderbook::Symbol& symbol) const;
 
         std::vector<ExchangeTrade> getTrades(const Orderbook::Symbol& symbol) const;
 
         void clearSymbol(const Orderbook::Symbol& symbol) ;
 
         void clearAll();
+
+        bool checkInvariant() const;
 
         ~Exchange();
 

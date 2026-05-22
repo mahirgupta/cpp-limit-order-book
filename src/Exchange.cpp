@@ -8,10 +8,10 @@ namespace Exch{
         Exchange::symbolToBook.clear();
     }
 
-    Orderbook::Symbol Exchange::getSymbolfromid(const Orderbook::OrderId id)const{
+    std::optional<Orderbook::Symbol> Exchange::getSymbolFromId(const Orderbook::OrderId id)const{
             auto it = Exchange::orderToSymbol.find(id);
             if(it == Exchange::orderToSymbol.end()){
-                return "None";
+                return std::nullopt;
             }
             return it->second;
         }
@@ -151,10 +151,10 @@ namespace Exch{
     }
 
 
-    Orderbook::Price Exchange::getBestBid(const Orderbook::Symbol& symbol) const{
+    std::optional<Orderbook::Price> Exchange::getBestBid(const Orderbook::Symbol& symbol) const{
         auto it = Exchange::symbolToBook.find(symbol);
         if(it == Exchange::symbolToBook.end()){
-            return -1;
+            return std::nullopt;
         }
 
         auto &book = it->second;
@@ -162,10 +162,10 @@ namespace Exch{
     }
     
     
-    Orderbook::Price Exchange::getBestAsk(const Orderbook::Symbol& symbol) const{
+    std::optional<Orderbook::Price> Exchange::getBestAsk(const Orderbook::Symbol& symbol) const{
         auto it = Exchange::symbolToBook.find(symbol);
         if(it == Exchange::symbolToBook.end()){
-            return -1;
+            return std::nullopt;
         }
 
         auto &book = it->second;
@@ -173,10 +173,10 @@ namespace Exch{
     }
     
 
-    Orderbook::Price Exchange::getSpread(const Orderbook::Symbol& symbol) const{
+    std::optional<Orderbook::Price> Exchange::getSpread(const Orderbook::Symbol& symbol) const{
         auto it = Exchange::symbolToBook.find(symbol);
         if(it == Exchange::symbolToBook.end()){
-            return -1;
+            return std::nullopt;
         }
 
         auto &book = it->second;
@@ -234,6 +234,41 @@ namespace Exch{
         orderToSymbol.clear();
         curOrderId=0;
     }
+
+    bool Exchange::checkInvariant()const{
+
+        for(const auto &i:Exchange::symbolToBook){
+            const auto& sym = i.first;
+            const auto& book = i.second;
+            if(!book.checkInvariants())return false;
+
+            for(const auto& order : book.getBuyOrders()){
+                auto it = Exchange::orderToSymbol.find(order.orderId);
+                if(it==Exchange::orderToSymbol.end())return false;
+                if(it->second != sym)return false;
+            }
+            
+            for(const auto& order : book.getSellOrders()){
+                auto it = Exchange::orderToSymbol.find(order.orderId);
+                if(it==Exchange::orderToSymbol.end())return false;
+                if(it->second != sym)return false;
+            }
+        }
+
+
+
+        for(const auto &i: Exchange::orderToSymbol){
+            if(!Exchange::hasSymbol(i.second))return false;
+            const auto bookIt = Exchange::symbolToBook.find(i.second);
+            if(bookIt==Exchange::symbolToBook.end()) return false;
+            const Orderbook::OrderBook& bk = bookIt->second;
+            if(!bk.checkOrder(i.first))return false;
+        }
+        return true;
+
+    }
+
+
 
     Exchange::~Exchange(){
         Exchange::orderToSymbol.clear();

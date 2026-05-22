@@ -17,6 +17,7 @@ namespace Orderbook{
 
     struct OrderResult{
         bool accepted;
+        bool alreadyPresent;
         Orderbook::OrderId orderId;
         std::vector<Orderbook::Trade>trade;
         Orderbook::Quantity remainQuantity;
