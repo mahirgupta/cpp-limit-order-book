@@ -1,39 +1,50 @@
-# C++ Limit Order Book - V2
+# C++ Limit Order Book - V3
 
-Single-symbol limit order book and CLI written in C++17.
+Multi-symbol limit order book and exchange style CLI written in C++17.
 
-V2 refactors the original prototype into a small CMake project with a core order-book library, CLI executable, and regression tests.
+V3 adds an `Exchange` layer on top of the V2 single-symbol `OrderBook`.
+Each symbol has its own independent book, and the exchange routes orders,
+cancels, best bid/ask, book views, and trades by symbol.
 
 ## Features
 
+- Multiple symbols
+- One independent `OrderBook` per symbol
+- Global order ids across all symbols
 - Buy and sell limit orders
 - Price-time priority matching
 - Resting-order-price trade execution
 - Full and partial fills
 - Multi-level sweeps
-- Cancel active orders by order id
-- Trade history
-- Best bid, best ask, and spread
-- Clear/reset command
-- Core order validation
-- CTest regression suite
+- Cancel active orders by global order id
+- Symbol specific trade history
+- Best bid, best ask, and spread per symbol using `std::optional`
+- Clear one symbol or clear all books
+- `OrderBook` and `Exchange` invariant checks
+- OrderBook and Exchange regression tests
+- Randomized invariant style tests
 
 ## Project Layout
 
 ```text
 include/
+  Type.hpp
   Cli/
     Cli.hpp
+  exchange/
+    Exchange.hpp
+    ExchangeType.hpp
   orderBook/
     Order.hpp
     OrderBook.hpp
     Trade.hpp
-    Type.hpp
 src/
   Cli.cpp
+  Exchange.cpp
   OrderBook.cpp
   main.cpp
 tests/
+  ExchangeTest.cpp
   OrderBookTest.cpp
 CMakeLists.txt
 ```
@@ -51,6 +62,13 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+Or run directly:
+
+```bash
+./build/orderbook_tests
+./build/exchange_tests
+```
+
 ## Run CLI
 
 ```bash
@@ -61,25 +79,55 @@ ctest --test-dir build --output-on-failure
 
 ```text
 help
-buy <price> <quantity>
-sell <price> <quantity>
+add_symbol <symbol>
+symbols
+buy <symbol> <price> <quantity>
+sell <symbol> <price> <quantity>
 cancel <order_id>
-book
-trades
-best
-clear
+book <symbol>
+trades <symbol>
+best <symbol>
+clear <symbol>
+clear_all
 exit
 quit
 ```
 
-## Current V2 Scope
+## Example
 
-This version intentionally stays single-symbol. It does not yet include multi-symbol routing, users, portfolios, cash/share settlement, bots, benchmarks, or custom allocators.
+```text
+add_symbol AAPL
+add_symbol MSFT
+
+buy AAPL 100 10
+sell AAPL 100 4
+
+book AAPL
+trades AAPL
+best AAPL
+```
+
+Orders only match inside the same symbol. So a buy on `AAPL` will not match a sell on `MSFT`.
+
+## Current V3 Scope
+
+V3 is still not doing users, portfolios, cash, holdings, settlement, bots,
+benchmarks, or multithreading.
+
+Current focus is:
+
+- correct single-symbol matching
+- clean multi-symbol routing
+- global order id cancel routing
+- symbol level book/trade queries
+- no `-1` sentinel for best bid, best ask, or spread
+- invariant checks after order, cancel, and clear flows
+- deterministic tests for exchange behavior
 
 ## Next Steps
 
-- Replace `-1` sentinel values with `std::optional`
-- Add stronger randomized invariant testing
-- Consider an explicit order-location index with side, price, and iterator
+- Initialize and tighten result/status fields
+- Add richer cancel/order status enums later
 - Add GitHub Actions CI
-- Start V3 multi-symbol exchange routing after V2 is stable
+- Update naming/style later if needed
+- Start V4 users, portfolios, cash reservation, and settlement after V3 is stable

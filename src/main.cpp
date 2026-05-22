@@ -2,6 +2,6 @@
 
 int main(){
     Cli cli;
-    Orderbook::OrderBook bk ;
-    cli.run(bk);
+    Exch::Exchange ex ;
+    cli.run(ex);
 }

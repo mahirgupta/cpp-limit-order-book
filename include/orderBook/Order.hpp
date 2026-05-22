@@ -1,6 +1,6 @@
 #pragma once 
 #include<cstdint>
-#include<orderBook/Type.hpp>
+#include<Type.hpp>
 #include<orderBook/Trade.hpp>
 #include<vector>
 
@@ -17,6 +17,7 @@ namespace Orderbook{
 
     struct OrderResult{
         bool accepted;
+        bool alreadyPresent;
         Orderbook::OrderId orderId;
         std::vector<Orderbook::Trade>trade;
         Orderbook::Quantity remainQuantity;
