@@ -5,6 +5,7 @@
 #include<list>
 #include<orderBook/Order.hpp>
 #include<orderBook/Trade.hpp>
+#include<Type.hpp>
 #include<optional>
 
 
@@ -26,7 +27,7 @@ namespace Orderbook{
 
         std::vector<Orderbook::Trade> match(Type type);
 
-        Orderbook::Trade makeTrade(OrderId buyId, OrderId sellId, Quantity quantity, Price price);
+        Orderbook::Trade makeTrade(OrderId buyId, OrderId sellId, Quantity quantity, Price price, UserId buyUserId, UserId sellUserId, Price buyerPrice, Price sellerPrice);
 
 
     public:
@@ -37,11 +38,11 @@ namespace Orderbook{
 
         // OrderId getCurOrderId() const;
 
-        Orderbook::OrderResult makeBuyOrder(Price price, Quantity quantity, OrderId curOrderId);
-        
-        Orderbook::OrderResult makeSellOrder(Price price, Quantity quantity, OrderId curOrderId);
+        Orderbook::OrderResult makeBuyOrder(Price price, Quantity quantity, OrderId curOrderId, UserId userId);
 
-        bool cancelOrder(OrderId id);
+        Orderbook::OrderResult makeSellOrder(Price price, Quantity quantity, OrderId curOrderId, UserId userId);
+
+        Orderbook::CancelOrderResult cancelOrder(OrderId id);
 
         std::optional<Price> getBestBid() const;
 
@@ -62,5 +63,7 @@ namespace Orderbook{
         std::vector<Trade> getTrade(std::int64_t s) const;
 
         bool checkInvariants() const;
+
+        UserId getUserIdFromOrder(Orderbook::OrderId id) const;
     };
 }

@@ -21,24 +21,84 @@
         std::cout << " ... OK\n";              \
     } while (false)
 
+class TestExchange : public Exch::Exchange{
+public:
+    Exch::ExchangeOrderResult buy(const Orderbook::Symbol& symbol, Orderbook::Price price, Orderbook::Quantity quantity){
+        return Exch::Exchange::buy(symbol, price, quantity, fundedBuyer());
+    }
+
+    Exch::ExchangeOrderResult sell(const Orderbook::Symbol& symbol, Orderbook::Price price, Orderbook::Quantity quantity){
+        return Exch::Exchange::sell(symbol, price, quantity, fundedSeller(symbol));
+    }
+
+    Exch::CancelResult cancelOrder(Orderbook::OrderId orderId){
+        return Exch::Exchange::cancelOrder(orderId, orderOwner(orderId));
+    }
+
+private:
+    Orderbook::UserId fundedBuyer(){
+        const auto userId = addUser();
+        depositCash(1'000'000'000, userId);
+        return userId;
+    }
+
+    Orderbook::UserId fundedSeller(const Orderbook::Symbol& symbol){
+        const auto userId = addUser();
+        if(hasSymbol(symbol)){
+            depositPosition(1'000'000'000, symbol, userId);
+        }
+        return userId;
+    }
+
+    Orderbook::UserId orderOwner(Orderbook::OrderId orderId) const{
+        for(const auto& symbol:getSymbol()){
+            for(const auto& order:getBuyOrders(symbol)){
+                if(order.orderId==orderId) return order.UserId;
+            }
+            for(const auto& order:getSellOrders(symbol)){
+                if(order.orderId==orderId) return order.UserId;
+            }
+        }
+        return 0;
+    }
+};
+
+Exch::account accountOf(const Exch::Exchange& ex, Orderbook::UserId userId){
+    auto account = ex.getAccount(userId);
+    CHECK(account);
+    return account.value();
+}
+
+Orderbook::Quantity positionOf(const Exch::account& account, const Orderbook::Symbol& symbol){
+    auto it = account.positions.find(symbol);
+    if(it==account.positions.end()) return 0;
+    return it->second;
+}
+
+Orderbook::Quantity reservedPositionOf(const Exch::account& account, const Orderbook::Symbol& symbol){
+    auto it = account.reservedPositions.find(symbol);
+    if(it==account.reservedPositions.end()) return 0;
+    return it->second;
+}
+
 
 
 void addSymbol(){
-    Exch::Exchange ex;
+    TestExchange ex;
     CHECK(ex.addSymbol("AAPL"));
     CHECK(ex.hasSymbol("AAPL"));
     CHECK(ex.checkInvariant());
 }
 
 void duplicateSymbolRejected(){
-    Exch::Exchange ex;
+    TestExchange ex;
     CHECK(ex.addSymbol("AAPL"));
     CHECK(!ex.addSymbol("AAPL"));
     CHECK(ex.checkInvariant());
 }
 
 void symbolList(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("MSFT");
     ex.addSymbol("AAPL");
     auto symbols = ex.getSymbol();
@@ -49,7 +109,7 @@ void symbolList(){
 }
 
 void rejectBuyFromUnknownSymbol(){
-    Exch::Exchange ex;
+    TestExchange ex;
     auto r = ex.buy("AAPL",100,10);
     CHECK(r.accepted==false);
     CHECK(r.orderId==0);
@@ -60,7 +120,7 @@ void rejectBuyFromUnknownSymbol(){
 }
 
 void rejectSellFromUnknownSymbol(){
-    Exch::Exchange ex;
+    TestExchange ex;
     auto r = ex.sell("AAPL",100,10);
     CHECK(r.accepted==false);
     CHECK(r.orderId==0);
@@ -71,7 +131,7 @@ void rejectSellFromUnknownSymbol(){
 }
 
 void rejectInvalidBuyPriceOrQuantity(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
 
     CHECK(!ex.buy("AAPL",0,10).accepted);
@@ -82,7 +142,7 @@ void rejectInvalidBuyPriceOrQuantity(){
 }
 
 void rejectInvalidSellPriceOrQuantity(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
 
     CHECK(!ex.sell("AAPL",0,10).accepted);
@@ -93,7 +153,7 @@ void rejectInvalidSellPriceOrQuantity(){
 }
 
 void buyRestsInCorrectSymbol(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     auto r = ex.buy("AAPL",100,10);
     CHECK(r.accepted);
@@ -107,7 +167,7 @@ void buyRestsInCorrectSymbol(){
 }
 
 void sellRestsInCorrectSymbol(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     auto r = ex.sell("AAPL",100,10);
     CHECK(r.accepted);
@@ -121,10 +181,10 @@ void sellRestsInCorrectSymbol(){
 }
 
 void symbolsAreIsolated(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     ex.addSymbol("MSFT");
-    
+
     auto r1 = ex.buy("AAPL",100,10);
     CHECK(ex.checkInvariant());
     auto r2 = ex.sell("MSFT",90,5);
@@ -149,7 +209,7 @@ void symbolsAreIsolated(){
 
 
 void sameSymbolBuyCrossesSell(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     auto s = ex.sell("AAPL",100,5);
     CHECK(ex.checkInvariant());
@@ -169,7 +229,7 @@ void sameSymbolBuyCrossesSell(){
 }
 
 void sameSymbolSellCrossesBuy(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     auto b = ex.buy("AAPL",100,5);
     CHECK(ex.checkInvariant());
@@ -189,7 +249,7 @@ void sameSymbolSellCrossesBuy(){
 }
 
 void tradePriceIsRestingPrice(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     ex.sell("AAPL",100,5);
     auto b = ex.buy("AAPL",110,5);
@@ -209,7 +269,7 @@ void tradePriceIsRestingPrice(){
 }
 
 void globalOrderIdsAcrossSymbols(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     ex.addSymbol("MSFT");
 
@@ -223,7 +283,7 @@ void globalOrderIdsAcrossSymbols(){
 }
 
 void cancelActiveBuyByGlobalIds(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     auto b = ex.buy("AAPL",100,10);
     CHECK(ex.checkInvariant());
@@ -240,7 +300,7 @@ void cancelActiveBuyByGlobalIds(){
 }
 
 void cancelActiveSellByGlobalIds(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     auto s = ex.sell("AAPL",100,10);
     CHECK(ex.checkInvariant());
@@ -257,7 +317,7 @@ void cancelActiveSellByGlobalIds(){
 }
 
 void cancelUnknownOrderIdFails(){
-    Exch::Exchange ex;
+    TestExchange ex;
     auto c = ex.cancelOrder(999);
     CHECK(ex.checkInvariant());
 
@@ -266,7 +326,7 @@ void cancelUnknownOrderIdFails(){
 }
 
 void cancelFullyFilledIncomingOrderFails(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     ex.sell("AAPL",100,5);
     auto b = ex.buy("AAPL",100,5);
@@ -278,7 +338,7 @@ void cancelFullyFilledIncomingOrderFails(){
 }
 
 void cancelFullyFilledRestingOrderFails(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     auto b = ex.buy("AAPL",100,5);
     auto s = ex.sell("AAPL",100,5);
@@ -295,7 +355,7 @@ void cancelFullyFilledRestingOrderFails(){
 }
 
 void cancelPartialyFilledRestingBuy(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     auto b = ex.buy("AAPL",100,10);
     CHECK(ex.checkInvariant());
@@ -318,7 +378,7 @@ void cancelPartialyFilledRestingBuy(){
 
 
 void cancelPartialyFilledRestingSell(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     auto s = ex.sell("AAPL",100,10);
     CHECK(ex.checkInvariant());
@@ -337,7 +397,7 @@ void cancelPartialyFilledRestingSell(){
 }
 
 void cancelOneSymbolDoesNotAffectOtherSymbol(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     ex.addSymbol("MSFT");
 
@@ -360,7 +420,7 @@ void cancelOneSymbolDoesNotAffectOtherSymbol(){
 }
 
 void tradesAreSymbolSpecific(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     ex.addSymbol("MSFT");
 
@@ -379,14 +439,14 @@ void tradesAreSymbolSpecific(){
 }
 
 void getTradesUnknownSymbolReturnsEmpty(){
-    Exch::Exchange ex;
+    TestExchange ex;
     auto trade = ex.getTrades("UNKNOWN");
     CHECK(trade.empty());
     CHECK(ex.checkInvariant());
 }
 
 void bestBidAskSpreadPerSymbol(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     ex.addSymbol("MSFT");
 
@@ -401,7 +461,7 @@ void bestBidAskSpreadPerSymbol(){
     CHECK(ex.getBestBid("AAPL").value()==100);
     CHECK(ex.getBestAsk("AAPL").value()==105);
     CHECK(ex.getSpread("AAPL").value()==5);
-    
+
     CHECK(ex.getBestBid("MSFT").value()==200);
     CHECK(ex.getBestAsk("MSFT").value()==220);
     CHECK(ex.getSpread("MSFT").value()==20);
@@ -409,7 +469,7 @@ void bestBidAskSpreadPerSymbol(){
 }
 
 void clearOneSymbol(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     ex.addSymbol("MSFT");
     auto a = ex.buy("AAPL",100,10);
@@ -436,14 +496,14 @@ void clearOneSymbol(){
 }
 
 void clearUnknownSymbolDoesNothing(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     ex.buy("AAPL",100,10);
     CHECK(ex.checkInvariant());
     CHECK(ex.getBuyOrders("AAPL").size()==1);
     CHECK(ex.getBuyOrders("AAPL")[0].price==100);
     CHECK(ex.getBuyOrders("AAPL")[0].quantity==10);
-    
+
     ex.clearSymbol("UNKNOWN");
     CHECK(ex.checkInvariant());
     CHECK(ex.getBuyOrders("AAPL").size()==1);
@@ -452,14 +512,14 @@ void clearUnknownSymbolDoesNothing(){
 }
 
 void clearAll(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     ex.addSymbol("MSFT");
 
     auto a = ex.buy("AAPL",100,10);
     auto m = ex.buy("MSFT",200,5);
     CHECK(ex.checkInvariant());
-    
+
     CHECK(ex.getBuyOrders("AAPL").size()==1);
     CHECK(ex.getBuyOrders("MSFT").size()==1);
     ex.clearAll();
@@ -481,17 +541,17 @@ void clearAll(){
 }
 
 void addSymbolAfterClearAll(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     CHECK(ex.checkInvariant());
     ex.clearAll();
     CHECK(ex.checkInvariant());
     CHECK(ex.hasSymbol("AAPL"));
-    
+
 }
 
 void multiLevelSweepOnOneSymbol(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
 
     ex.sell("AAPL",100,5);
@@ -520,7 +580,7 @@ void multiLevelSweepOnOneSymbol(){
 
 
 void FIFOSamePriceThroughExchange(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     auto s1 = ex.sell("AAPL", 100, 5);
     auto s2 = ex.sell("AAPL", 100, 7);
@@ -537,7 +597,7 @@ void FIFOSamePriceThroughExchange(){
 }
 
 void pricePriorityThroughExchange(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     auto b1 = ex.buy("AAPL", 99, 5);
     auto b2 = ex.buy("AAPL", 101, 5);
@@ -552,7 +612,7 @@ void pricePriorityThroughExchange(){
 }
 
 void orderIdsDoesNotAdvanceOnRejectedUnknownSymbol(){
-    Exch::Exchange ex;
+    TestExchange ex;
     auto bad = ex.buy("UNKNOWN",100,10);
     CHECK(ex.checkInvariant());
     CHECK(!bad.accepted);
@@ -564,7 +624,7 @@ void orderIdsDoesNotAdvanceOnRejectedUnknownSymbol(){
 }
 
 void orderIdDoesNotAdvanceOnInvalidPriceQuantity(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     ex.buy("AAPL",0,10);
     ex.buy("AAPL",100,0);
@@ -636,7 +696,7 @@ void checkVisibleExchangeInvariants(Exch::Exchange& ex, const std::vector<Orderb
 }
 
 void randomizedExchangeOperationsPreserveInvariants(){
-    Exch::Exchange ex;
+    TestExchange ex;
     std::vector<Orderbook::Symbol> symbols = {"AAPL","MSFT","TSLA"};
     std::vector<Orderbook::OrderId> candidateOrderIds;
     std::mt19937 rng(42);
@@ -685,7 +745,7 @@ void randomizedExchangeOperationsPreserveInvariants(){
 
 
 void clearSymbolTradeHistoryTest(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     ex.sell("AAPL", 100, 5);
     ex.buy("AAPL", 100, 5);
@@ -696,18 +756,349 @@ void clearSymbolTradeHistoryTest(){
 
 
 void clearAllDuplicateSymbolSemeticsTest(){
-    Exch::Exchange ex;
+    TestExchange ex;
     ex.addSymbol("AAPL");
     ex.clearAll();
     CHECK(ex.hasSymbol("AAPL"));
     CHECK(!ex.addSymbol("AAPL"));
 }
 
+void buyOrderReservesCash(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto user = ex.addUser();
+    CHECK(ex.depositCash(1000, user));
+
+    auto result = ex.buy("AAPL", 100, 5, user);
+    CHECK(result.accepted);
+    CHECK(result.remainQuantity==5);
+    CHECK(ex.getBuyOrders("AAPL").size()==1);
+
+    auto account = accountOf(ex, user);
+    CHECK(account.cash==500);
+    CHECK(account.reservedCash==500);
+    CHECK(account.orders.size()==1);
+    CHECK(ex.checkInvariant());
+}
+
+void sellOrderReservesPosition(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto user = ex.addUser();
+    CHECK(ex.depositPosition(10, "AAPL", user)==10);
+
+    auto result = ex.sell("AAPL", 100, 6, user);
+    CHECK(result.accepted);
+    CHECK(result.remainQuantity==6);
+    CHECK(ex.getSellOrders("AAPL").size()==1);
+
+    auto account = accountOf(ex, user);
+    CHECK(positionOf(account, "AAPL")==4);
+    CHECK(reservedPositionOf(account, "AAPL")==6);
+    CHECK(account.orders.size()==1);
+    CHECK(ex.checkInvariant());
+}
+
+void buyRejectsWhenAvailableCashIsInsufficient(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto user = ex.addUser();
+    CHECK(ex.depositCash(100, user));
+
+    auto result = ex.buy("AAPL", 100, 2, user);
+    CHECK(!result.accepted);
+    CHECK(result.message=="Insufficient Cash");
+    CHECK(ex.getBuyOrders("AAPL").empty());
+
+    auto account = accountOf(ex, user);
+    CHECK(account.cash==100);
+    CHECK(account.reservedCash==0);
+    CHECK(account.orders.empty());
+    CHECK(ex.checkInvariant());
+}
+
+void sellRejectsWhenAvailablePositionIsInsufficient(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto user = ex.addUser();
+    CHECK(ex.depositPosition(1, "AAPL", user)==1);
+
+    auto result = ex.sell("AAPL", 100, 2, user);
+    CHECK(!result.accepted);
+    CHECK(result.message=="Insufficient Quantity");
+    CHECK(ex.getSellOrders("AAPL").empty());
+
+    auto account = accountOf(ex, user);
+    CHECK(positionOf(account, "AAPL")==1);
+    CHECK(reservedPositionOf(account, "AAPL")==0);
+    CHECK(account.orders.empty());
+    CHECK(ex.checkInvariant());
+}
+
+void fullFillSettlesBuyerAndSellerAccounts(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto buyer = ex.addUser();
+    const auto seller = ex.addUser();
+    CHECK(ex.depositCash(1000, buyer));
+    CHECK(ex.depositPosition(5, "AAPL", seller)==5);
+
+    auto sell = ex.sell("AAPL", 100, 5, seller);
+    auto buy = ex.buy("AAPL", 100, 5, buyer);
+    CHECK(sell.accepted);
+    CHECK(buy.accepted);
+    CHECK(buy.trades.size()==1);
+    CHECK(ex.getBuyOrders("AAPL").empty());
+    CHECK(ex.getSellOrders("AAPL").empty());
+
+    auto buyerAccount = accountOf(ex, buyer);
+    CHECK(buyerAccount.cash==500);
+    CHECK(buyerAccount.reservedCash==0);
+    CHECK(positionOf(buyerAccount, "AAPL")==5);
+
+    auto sellerAccount = accountOf(ex, seller);
+    CHECK(sellerAccount.cash==500);
+    CHECK(positionOf(sellerAccount, "AAPL")==0);
+    CHECK(reservedPositionOf(sellerAccount, "AAPL")==0);
+    CHECK(ex.checkInvariant());
+}
+
+void partialFillLeavesRemainingBuyReserved(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto buyer = ex.addUser();
+    const auto seller = ex.addUser();
+    CHECK(ex.depositCash(1000, buyer));
+    CHECK(ex.depositPosition(3, "AAPL", seller)==3);
+
+    auto buy = ex.buy("AAPL", 100, 5, buyer);
+    auto sell = ex.sell("AAPL", 100, 3, seller);
+    CHECK(buy.accepted);
+    CHECK(sell.accepted);
+    CHECK(sell.trades.size()==1);
+    CHECK(ex.getBuyOrders("AAPL").size()==1);
+    CHECK(ex.getBuyOrders("AAPL")[0].quantity==2);
+
+    auto buyerAccount = accountOf(ex, buyer);
+    CHECK(buyerAccount.cash==500);
+    CHECK(buyerAccount.reservedCash==200);
+    CHECK(positionOf(buyerAccount, "AAPL")==3);
+
+    auto sellerAccount = accountOf(ex, seller);
+    CHECK(sellerAccount.cash==300);
+    CHECK(positionOf(sellerAccount, "AAPL")==0);
+    CHECK(reservedPositionOf(sellerAccount, "AAPL")==0);
+    CHECK(ex.checkInvariant());
+}
+
+void partialFillLeavesRemainingSellReserved(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto buyer = ex.addUser();
+    const auto seller = ex.addUser();
+    CHECK(ex.depositCash(1000, buyer));
+    CHECK(ex.depositPosition(5, "AAPL", seller)==5);
+
+    auto sell = ex.sell("AAPL", 100, 5, seller);
+    auto buy = ex.buy("AAPL", 100, 3, buyer);
+    CHECK(sell.accepted);
+    CHECK(buy.accepted);
+    CHECK(buy.trades.size()==1);
+    CHECK(ex.getSellOrders("AAPL").size()==1);
+    CHECK(ex.getSellOrders("AAPL")[0].quantity==2);
+
+    auto buyerAccount = accountOf(ex, buyer);
+    CHECK(buyerAccount.cash==700);
+    CHECK(buyerAccount.reservedCash==0);
+    CHECK(positionOf(buyerAccount, "AAPL")==3);
+
+    auto sellerAccount = accountOf(ex, seller);
+    CHECK(sellerAccount.cash==300);
+    CHECK(positionOf(sellerAccount, "AAPL")==0);
+    CHECK(reservedPositionOf(sellerAccount, "AAPL")==2);
+    CHECK(ex.checkInvariant());
+}
+
+void priceImprovementRefundsBuyerCash(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto buyer = ex.addUser();
+    const auto seller = ex.addUser();
+    CHECK(ex.depositCash(1000, buyer));
+    CHECK(ex.depositPosition(5, "AAPL", seller)==5);
+
+    auto sell = ex.sell("AAPL", 90, 5, seller);
+    auto buy = ex.buy("AAPL", 100, 5, buyer);
+    CHECK(sell.accepted);
+    CHECK(buy.accepted);
+    CHECK(buy.trades.size()==1);
+    CHECK(buy.trades[0].price==90);
+
+    auto buyerAccount = accountOf(ex, buyer);
+    CHECK(buyerAccount.cash==550);
+    CHECK(buyerAccount.reservedCash==0);
+    CHECK(positionOf(buyerAccount, "AAPL")==5);
+
+    auto sellerAccount = accountOf(ex, seller);
+    CHECK(sellerAccount.cash==450);
+    CHECK(positionOf(sellerAccount, "AAPL")==0);
+    CHECK(reservedPositionOf(sellerAccount, "AAPL")==0);
+    CHECK(ex.checkInvariant());
+}
+
+void withdrawUsesAvailableCashOnly(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto user = ex.addUser();
+    CHECK(ex.depositCash(1000, user));
+    CHECK(ex.buy("AAPL", 100, 5, user).accepted);
+
+    CHECK(!ex.withdrawCash(600, user));
+    CHECK(ex.withdrawCash(500, user));
+
+    auto account = accountOf(ex, user);
+    CHECK(account.cash==0);
+    CHECK(account.reservedCash==500);
+    CHECK(ex.checkInvariant());
+}
+
+void cancelBuyReleasesReservedCash(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto user = ex.addUser();
+    CHECK(ex.depositCash(1000, user));
+    auto buy = ex.buy("AAPL", 100, 5, user);
+    CHECK(buy.accepted);
+
+    auto cancel = ex.cancelOrder(buy.orderId, user);
+    CHECK(cancel.cancelled);
+
+    auto account = accountOf(ex, user);
+    CHECK(account.cash==1000);
+    CHECK(account.reservedCash==0);
+    CHECK(account.orders.empty());
+    CHECK(ex.getBuyOrders("AAPL").empty());
+    CHECK(ex.checkInvariant());
+}
+
+void cancelSellReleasesReservedPosition(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto user = ex.addUser();
+    CHECK(ex.depositPosition(5, "AAPL", user)==5);
+    auto sell = ex.sell("AAPL", 100, 5, user);
+    CHECK(sell.accepted);
+
+    auto cancel = ex.cancelOrder(sell.orderId, user);
+    CHECK(cancel.cancelled);
+
+    auto account = accountOf(ex, user);
+    CHECK(positionOf(account, "AAPL")==5);
+    CHECK(reservedPositionOf(account, "AAPL")==0);
+    CHECK(account.orders.empty());
+    CHECK(ex.getSellOrders("AAPL").empty());
+    CHECK(ex.checkInvariant());
+}
+
+void clearSymbolReleasesOnlyThatSymbolReservations(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    ex.addSymbol("MSFT");
+    const auto user = ex.addUser();
+    CHECK(ex.depositCash(1000, user));
+    CHECK(ex.depositPosition(10, "MSFT", user)==10);
+    CHECK(ex.buy("AAPL", 100, 5, user).accepted);
+    CHECK(ex.sell("MSFT", 200, 4, user).accepted);
+
+    ex.clearSymbol("AAPL");
+
+    auto account = accountOf(ex, user);
+    CHECK(account.cash==1000);
+    CHECK(account.reservedCash==0);
+    CHECK(positionOf(account, "MSFT")==6);
+    CHECK(reservedPositionOf(account, "MSFT")==4);
+    CHECK(ex.getBuyOrders("AAPL").empty());
+    CHECK(ex.getSellOrders("MSFT").size()==1);
+    CHECK(ex.checkInvariant());
+}
+
+void clearAllReleasesAllReservations(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    ex.addSymbol("MSFT");
+    const auto user = ex.addUser();
+    CHECK(ex.depositCash(1000, user));
+    CHECK(ex.depositPosition(10, "MSFT", user)==10);
+    CHECK(ex.buy("AAPL", 100, 5, user).accepted);
+    CHECK(ex.sell("MSFT", 200, 4, user).accepted);
+
+    ex.clearAll();
+
+    auto account = accountOf(ex, user);
+    CHECK(account.cash==1000);
+    CHECK(account.reservedCash==0);
+    CHECK(positionOf(account, "MSFT")==10);
+    CHECK(reservedPositionOf(account, "MSFT")==0);
+    CHECK(ex.getBuyOrders("AAPL").empty());
+    CHECK(ex.getSellOrders("MSFT").empty());
+    CHECK(ex.checkInvariant());
+}
+
+void selfTradeRegistersAndSettlesBothSides(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto user = ex.addUser();
+    CHECK(ex.depositCash(1000, user));
+    CHECK(ex.depositPosition(5, "AAPL", user)==5);
+
+    auto buy = ex.buy("AAPL", 100, 5, user);
+    auto sell = ex.sell("AAPL", 90, 3, user);
+    CHECK(buy.accepted);
+    CHECK(sell.accepted);
+    CHECK(sell.trades.size()==1);
+    CHECK(ex.getTrades("AAPL").size()==1);
+    CHECK(sell.trades[0].buyerUserId==user);
+    CHECK(sell.trades[0].sellerUserId==user);
+
+    auto account = accountOf(ex, user);
+    CHECK(account.cash==800);
+    CHECK(account.reservedCash==200);
+    CHECK(positionOf(account, "AAPL")==5);
+    CHECK(reservedPositionOf(account, "AAPL")==0);
+    CHECK(account.trade.size()==2);
+    CHECK(ex.getBuyOrders("AAPL").size()==1);
+    CHECK(ex.getBuyOrders("AAPL")[0].quantity==2);
+    CHECK(ex.checkInvariant());
+}
+
+void deleteUserRejectsNonEmptyAccounts(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto cashUser = ex.addUser();
+    CHECK(ex.depositCash(100, cashUser));
+    CHECK(!ex.deleteUser(cashUser));
+    CHECK(ex.hasUser(cashUser));
+
+    const auto positionUser = ex.addUser();
+    CHECK(ex.depositPosition(1, "AAPL", positionUser)==1);
+    CHECK(!ex.deleteUser(positionUser));
+    CHECK(ex.hasUser(positionUser));
+    CHECK(ex.checkInvariant());
+}
+
+void deleteUserAllowsEmptyAccount(){
+    Exch::Exchange ex;
+    const auto user = ex.addUser();
+    CHECK(ex.deleteUser(user));
+    CHECK(!ex.hasUser(user));
+    CHECK(ex.checkInvariant());
+}
+
 
 
 
 int main() {
-    
+
     RUN_TEST(addSymbol);
     RUN_TEST(duplicateSymbolRejected);
     RUN_TEST(symbolList);
@@ -729,8 +1120,8 @@ int main() {
     RUN_TEST(cancelFullyFilledIncomingOrderFails);
     RUN_TEST(cancelFullyFilledRestingOrderFails);
     RUN_TEST(cancelPartialyFilledRestingBuy);
-    
-    
+
+
     RUN_TEST(cancelPartialyFilledRestingSell);
     RUN_TEST(cancelOneSymbolDoesNotAffectOtherSymbol);
     RUN_TEST(tradesAreSymbolSpecific);
@@ -751,6 +1142,22 @@ int main() {
 
     RUN_TEST(clearSymbolTradeHistoryTest);
     RUN_TEST(clearAllDuplicateSymbolSemeticsTest);
+    RUN_TEST(buyOrderReservesCash);
+    RUN_TEST(sellOrderReservesPosition);
+    RUN_TEST(buyRejectsWhenAvailableCashIsInsufficient);
+    RUN_TEST(sellRejectsWhenAvailablePositionIsInsufficient);
+    RUN_TEST(fullFillSettlesBuyerAndSellerAccounts);
+    RUN_TEST(partialFillLeavesRemainingBuyReserved);
+    RUN_TEST(partialFillLeavesRemainingSellReserved);
+    RUN_TEST(priceImprovementRefundsBuyerCash);
+    RUN_TEST(withdrawUsesAvailableCashOnly);
+    RUN_TEST(cancelBuyReleasesReservedCash);
+    RUN_TEST(cancelSellReleasesReservedPosition);
+    RUN_TEST(clearSymbolReleasesOnlyThatSymbolReservations);
+    RUN_TEST(clearAllReleasesAllReservations);
+    RUN_TEST(selfTradeRegistersAndSettlesBothSides);
+    RUN_TEST(deleteUserRejectsNonEmptyAccounts);
+    RUN_TEST(deleteUserAllowsEmptyAccount);
 
 
 
