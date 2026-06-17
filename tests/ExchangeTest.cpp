@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <vector>
 
@@ -771,6 +772,7 @@ void buyOrderReservesCash(){
 
     auto result = ex.buy("AAPL", 100, 5, user);
     CHECK(result.accepted);
+    CHECK(result.status==Exch::ExchangeOrderStatus::AcceptedResting);
     CHECK(result.remainQuantity==5);
     CHECK(ex.getBuyOrders("AAPL").size()==1);
 
@@ -789,6 +791,7 @@ void sellOrderReservesPosition(){
 
     auto result = ex.sell("AAPL", 100, 6, user);
     CHECK(result.accepted);
+    CHECK(result.status==Exch::ExchangeOrderStatus::AcceptedResting);
     CHECK(result.remainQuantity==6);
     CHECK(ex.getSellOrders("AAPL").size()==1);
 
@@ -807,6 +810,7 @@ void buyRejectsWhenAvailableCashIsInsufficient(){
 
     auto result = ex.buy("AAPL", 100, 2, user);
     CHECK(!result.accepted);
+    CHECK(result.status==Exch::ExchangeOrderStatus::RejectedInsufficientCash);
     CHECK(result.message=="Insufficient Cash");
     CHECK(ex.getBuyOrders("AAPL").empty());
 
@@ -825,6 +829,7 @@ void sellRejectsWhenAvailablePositionIsInsufficient(){
 
     auto result = ex.sell("AAPL", 100, 2, user);
     CHECK(!result.accepted);
+    CHECK(result.status==Exch::ExchangeOrderStatus::RejectedInsufficientShares);
     CHECK(result.message=="Insufficient Quantity");
     CHECK(ex.getSellOrders("AAPL").empty());
 
@@ -832,6 +837,48 @@ void sellRejectsWhenAvailablePositionIsInsufficient(){
     CHECK(positionOf(account, "AAPL")==1);
     CHECK(reservedPositionOf(account, "AAPL")==0);
     CHECK(account.orders.empty());
+    CHECK(ex.checkInvariant());
+}
+
+void buyRejectsUnknownUserWithStatus(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+
+    auto result = ex.buy("AAPL", 100, 1, 42);
+    CHECK(!result.accepted);
+    CHECK(result.status==Exch::ExchangeOrderStatus::RejectedUnknownUser);
+    CHECK(result.message=="Unknown User");
+    CHECK(ex.getBuyOrders("AAPL").empty());
+    CHECK(ex.checkInvariant());
+}
+
+void sellRejectsUnknownUserWithStatus(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+
+    auto result = ex.sell("AAPL", 100, 1, 42);
+    CHECK(!result.accepted);
+    CHECK(result.status==Exch::ExchangeOrderStatus::RejectedUnknownUser);
+    CHECK(result.message=="Unknown User");
+    CHECK(ex.getSellOrders("AAPL").empty());
+    CHECK(ex.checkInvariant());
+}
+
+void overflowingBuyCashRequirementIsRejected(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto user = ex.addUser();
+    CHECK(ex.depositCash(std::numeric_limits<Orderbook::Cash>::max(), user));
+
+    auto result = ex.buy("AAPL", std::numeric_limits<Orderbook::Price>::max(), 2, user);
+    CHECK(!result.accepted);
+    CHECK(result.status==Exch::ExchangeOrderStatus::RejectedCashOverflow);
+    CHECK(result.message=="Cash Overflow");
+    CHECK(ex.getBuyOrders("AAPL").empty());
+
+    auto account = accountOf(ex, user);
+    CHECK(account.cash==std::numeric_limits<Orderbook::Cash>::max());
+    CHECK(account.reservedCash==0);
     CHECK(ex.checkInvariant());
 }
 
@@ -847,6 +894,7 @@ void fullFillSettlesBuyerAndSellerAccounts(){
     auto buy = ex.buy("AAPL", 100, 5, buyer);
     CHECK(sell.accepted);
     CHECK(buy.accepted);
+    CHECK(buy.status==Exch::ExchangeOrderStatus::AcceptedFilled);
     CHECK(buy.trades.size()==1);
     CHECK(ex.getBuyOrders("AAPL").empty());
     CHECK(ex.getSellOrders("AAPL").empty());
@@ -875,6 +923,8 @@ void partialFillLeavesRemainingBuyReserved(){
     auto sell = ex.sell("AAPL", 100, 3, seller);
     CHECK(buy.accepted);
     CHECK(sell.accepted);
+    CHECK(buy.status==Exch::ExchangeOrderStatus::AcceptedResting);
+    CHECK(sell.status==Exch::ExchangeOrderStatus::AcceptedFilled);
     CHECK(sell.trades.size()==1);
     CHECK(ex.getBuyOrders("AAPL").size()==1);
     CHECK(ex.getBuyOrders("AAPL")[0].quantity==2);
@@ -903,6 +953,8 @@ void partialFillLeavesRemainingSellReserved(){
     auto buy = ex.buy("AAPL", 100, 3, buyer);
     CHECK(sell.accepted);
     CHECK(buy.accepted);
+    CHECK(sell.status==Exch::ExchangeOrderStatus::AcceptedResting);
+    CHECK(buy.status==Exch::ExchangeOrderStatus::AcceptedFilled);
     CHECK(buy.trades.size()==1);
     CHECK(ex.getSellOrders("AAPL").size()==1);
     CHECK(ex.getSellOrders("AAPL")[0].quantity==2);
@@ -931,6 +983,7 @@ void priceImprovementRefundsBuyerCash(){
     auto buy = ex.buy("AAPL", 100, 5, buyer);
     CHECK(sell.accepted);
     CHECK(buy.accepted);
+    CHECK(buy.status==Exch::ExchangeOrderStatus::AcceptedFilled);
     CHECK(buy.trades.size()==1);
     CHECK(buy.trades[0].price==90);
 
@@ -962,6 +1015,29 @@ void withdrawUsesAvailableCashOnly(){
     CHECK(ex.checkInvariant());
 }
 
+void wrongUserCannotCancelOrder(){
+    Exch::Exchange ex;
+    ex.addSymbol("AAPL");
+    const auto alice = ex.addUser();
+    const auto bob = ex.addUser();
+    CHECK(ex.depositCash(1000, alice));
+
+    auto buy = ex.buy("AAPL", 100, 5, alice);
+    CHECK(buy.accepted);
+
+    auto cancel = ex.cancelOrder(buy.orderId, bob);
+    CHECK(!cancel.cancelled);
+    CHECK(cancel.status==Exch::CancelStatus::Unauthorized);
+    CHECK(cancel.message=="Order Id Not match with User Id");
+
+    auto aliceAccount = accountOf(ex, alice);
+    CHECK(aliceAccount.cash==500);
+    CHECK(aliceAccount.reservedCash==500);
+    CHECK(aliceAccount.orders.count(buy.orderId)==1);
+    CHECK(ex.getBuyOrders("AAPL").size()==1);
+    CHECK(ex.checkInvariant());
+}
+
 void cancelBuyReleasesReservedCash(){
     Exch::Exchange ex;
     ex.addSymbol("AAPL");
@@ -972,6 +1048,7 @@ void cancelBuyReleasesReservedCash(){
 
     auto cancel = ex.cancelOrder(buy.orderId, user);
     CHECK(cancel.cancelled);
+    CHECK(cancel.status==Exch::CancelStatus::Cancelled);
 
     auto account = accountOf(ex, user);
     CHECK(account.cash==1000);
@@ -991,6 +1068,7 @@ void cancelSellReleasesReservedPosition(){
 
     auto cancel = ex.cancelOrder(sell.orderId, user);
     CHECK(cancel.cancelled);
+    CHECK(cancel.status==Exch::CancelStatus::Cancelled);
 
     auto account = accountOf(ex, user);
     CHECK(positionOf(account, "AAPL")==5);
@@ -1055,6 +1133,7 @@ void selfTradeRegistersAndSettlesBothSides(){
     auto sell = ex.sell("AAPL", 90, 3, user);
     CHECK(buy.accepted);
     CHECK(sell.accepted);
+    CHECK(sell.status==Exch::ExchangeOrderStatus::AcceptedFilled);
     CHECK(sell.trades.size()==1);
     CHECK(ex.getTrades("AAPL").size()==1);
     CHECK(sell.trades[0].buyerUserId==user);
@@ -1146,11 +1225,15 @@ int main() {
     RUN_TEST(sellOrderReservesPosition);
     RUN_TEST(buyRejectsWhenAvailableCashIsInsufficient);
     RUN_TEST(sellRejectsWhenAvailablePositionIsInsufficient);
+    RUN_TEST(buyRejectsUnknownUserWithStatus);
+    RUN_TEST(sellRejectsUnknownUserWithStatus);
+    RUN_TEST(overflowingBuyCashRequirementIsRejected);
     RUN_TEST(fullFillSettlesBuyerAndSellerAccounts);
     RUN_TEST(partialFillLeavesRemainingBuyReserved);
     RUN_TEST(partialFillLeavesRemainingSellReserved);
     RUN_TEST(priceImprovementRefundsBuyerCash);
     RUN_TEST(withdrawUsesAvailableCashOnly);
+    RUN_TEST(wrongUserCannotCancelOrder);
     RUN_TEST(cancelBuyReleasesReservedCash);
     RUN_TEST(cancelSellReleasesReservedPosition);
     RUN_TEST(clearSymbolReleasesOnlyThatSymbolReservations);

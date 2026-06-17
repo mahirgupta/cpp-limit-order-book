@@ -21,6 +21,8 @@ multi-symbol exchange layer.
 - Cash/position settlement on trades
 - Price improvement refund for buyers
 - Cancel active orders by user id and global order id
+- Structured order and cancel statuses for programmatic callers
+- Overflow-safe cash requirement checks for order reservation
 - Symbol-specific trade history
 - Account-level trade history
 - Best bid, best ask, and spread per symbol using `std::optional`
@@ -138,6 +140,8 @@ When a buy order is accepted, `price * quantity` moves from `cash` to
 `reservedCash`. When a sell order is accepted, quantity moves from available
 position to reserved position. Fills settle both sides and release the consumed
 reserved balances. Cancel and clear operations release remaining reservations.
+Cash calculations used for buy reservation and settlement are checked before
+they are applied, so oversized `price * quantity` requirements are rejected.
 
 Self-trades are currently registered as normal trades. The global symbol trade
 history stores one execution, while the account history stores both sides for
@@ -151,7 +155,9 @@ Current focus is:
 - clean multi-symbol routing
 - global order id cancel routing
 - user-aware order placement and cancel
+- structured order and cancel result statuses
 - cash and position reservation
+- overflow-safe cash reservation checks
 - trade settlement between accounts
 - self-trade registration
 - symbol-level and account-level trade queries
@@ -160,7 +166,6 @@ Current focus is:
 
 ## Next Steps
 
-- Add richer cancel/order status enums
 - Add account trade side metadata for clearer buy/sell-side history
 - Add exchange fees or taxes
 - Add GitHub Actions CI

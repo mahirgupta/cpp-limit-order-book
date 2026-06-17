@@ -4,6 +4,28 @@
 
 
 namespace Exch{
+    enum class ExchangeOrderStatus{
+        AcceptedResting,
+        AcceptedFilled,
+        AcceptedPartiallyFilled,
+        RejectedInvalidInput,
+        RejectedDuplicateOrderId,
+        RejectedUnknownSymbol,
+        RejectedUnknownUser,
+        RejectedInsufficientCash,
+        RejectedInsufficientShares,
+        RejectedCashOverflow
+    };
+
+    enum class CancelStatus{
+        Cancelled,
+        UnknownOrder,
+        UnknownSymbol,
+        UnknownUser,
+        Unauthorized,
+        NotCancelled
+    };
+
     struct ExchangeTrade{
         Orderbook::Symbol symbol;
         Orderbook::OrderId buyerOrderId;
@@ -17,6 +39,7 @@ namespace Exch{
 
     struct ExchangeOrderResult{
         bool accepted;
+        Exch::ExchangeOrderStatus status;
         std::string message;
         Orderbook::Symbol symbol;
         Orderbook::OrderId orderId;
@@ -27,9 +50,9 @@ namespace Exch{
 
     struct CancelResult{
         bool cancelled;
+        Exch::CancelStatus status;
         Orderbook::Symbol symbol;
         std::string message;
     };
 
 }
-
