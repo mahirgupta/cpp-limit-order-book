@@ -1,11 +1,71 @@
 #include<exchange/Exchange.hpp>
+#include<limits>
 
 namespace Exch{
+
+    namespace{
+        std::optional<Orderbook::Cash> safeMultiplyCash(Orderbook::Cash price, Orderbook::Quantity quantity){
+            if(price<0 || quantity<0) return std::nullopt;
+            if(quantity!=0 && price>std::numeric_limits<Orderbook::Cash>::max()/quantity) return std::nullopt;
+            return price*quantity;
+        }
+
+        Exch::ExchangeOrderStatus acceptedStatus(Orderbook::Quantity requested, Orderbook::Quantity remaining){
+            if(remaining==0) return Exch::ExchangeOrderStatus::AcceptedFilled;
+            if(remaining==requested) return Exch::ExchangeOrderStatus::AcceptedResting;
+            return Exch::ExchangeOrderStatus::AcceptedPartiallyFilled;
+        }
+
+        std::string orderStatusMessage(Exch::ExchangeOrderStatus status){
+            switch(status){
+                case Exch::ExchangeOrderStatus::AcceptedResting:
+                    return "Accepted Resting";
+                case Exch::ExchangeOrderStatus::AcceptedFilled:
+                    return "Accepted Filled";
+                case Exch::ExchangeOrderStatus::AcceptedPartiallyFilled:
+                    return "Accepted Partially Filled";
+                case Exch::ExchangeOrderStatus::RejectedInvalidInput:
+                    return "Invalid Input";
+                case Exch::ExchangeOrderStatus::RejectedDuplicateOrderId:
+                    return "Duplicate Order Id";
+                case Exch::ExchangeOrderStatus::RejectedUnknownSymbol:
+                    return "Unknown Symbol";
+                case Exch::ExchangeOrderStatus::RejectedUnknownUser:
+                    return "Unknown User";
+                case Exch::ExchangeOrderStatus::RejectedInsufficientCash:
+                    return "Insufficient Cash";
+                case Exch::ExchangeOrderStatus::RejectedInsufficientShares:
+                    return "Insufficient Quantity";
+                case Exch::ExchangeOrderStatus::RejectedCashOverflow:
+                    return "Cash Overflow";
+            }
+            return "Unknown Status";
+        }
+
+        std::string cancelStatusMessage(Exch::CancelStatus status){
+            switch(status){
+                case Exch::CancelStatus::Cancelled:
+                    return "Cancelled";
+                case Exch::CancelStatus::UnknownOrder:
+                    return "Unknown Order";
+                case Exch::CancelStatus::UnknownSymbol:
+                    return "Unknown Symbol";
+                case Exch::CancelStatus::UnknownUser:
+                    return "Unknown User";
+                case Exch::CancelStatus::Unauthorized:
+                    return "Order Id Not match with User Id";
+                case Exch::CancelStatus::NotCancelled:
+                    return "Not Cancelled";
+            }
+            return "Unknown Status";
+        }
+    }
 
     Exchange::Exchange(){
         Exchange::curOrderId=0;
         Exchange::orderToSymbol.clear();
         Exchange::symbolToBook.clear();
+        Exchange::curUserId = 0;
     }
 
     std::optional<Orderbook::Symbol> Exchange::getSymbolFromId(const Orderbook::OrderId id)const{
@@ -39,21 +99,121 @@ namespace Exch{
         return ans;
     }
 
-    Exch::ExchangeOrderResult Exchange::buy(const Orderbook::Symbol& symbol, Orderbook::Price price, Orderbook::Quantity quantity){
-        if(Exchange::symbolToBook.find(symbol)==Exchange::symbolToBook.end() || price<=0 || quantity<=0){
-            return {0, "Invalid Input", symbol,0, {}, 0};
+    Orderbook::UserId Exch::Exchange::addUser(){
+        Exch::account a;
+        a.userid = ++Exchange::curUserId;
+        Exchange::accounts[curUserId] = a;
+        return curUserId;
+    }
+
+    bool Exch::Exchange::hasUser(Orderbook::UserId userid){
+        return(Exchange::accounts.find(userid)!=Exchange::accounts.end());
+    }
+
+    std::vector<Orderbook::UserId> Exchange::getUsers()const{
+        std::vector<Orderbook::UserId>ans;
+        for(auto i:Exchange::accounts) ans.push_back(i.first);
+        return ans;
+    }
+
+    bool Exchange::deleteUser(const Orderbook::UserId userid){
+        if(!Exchange::hasUser(userid)) return true; // already deleted no user
+        auto hasNonZeroBalance = [](const auto& balances){
+            for(const auto& i:balances){
+                if(i.second!=0) return true;
+            }
+            return false;
+        };
+
+        const auto& account = Exchange::accounts[userid];
+        if(!account.orders.empty() || account.cash!=0 || account.reservedCash!=0 || hasNonZeroBalance(account.positions) || hasNonZeroBalance(account.reservedPositions) || !account.trade.empty()) return false;
+        Exchange::accounts.erase(userid);
+        return true;
+
+    }
+
+    std::optional<Exch::account> Exchange::getAccount(const Orderbook::UserId userid) const{
+        auto it = Exchange::accounts.find(userid);
+        if(it==Exchange::accounts.end()) return std::nullopt;
+        return it->second;
+    }
+
+    std::optional<Orderbook::Cash> Exchange::getAvailableCash(const Orderbook::UserId userid){
+        if(!Exchange::hasUser(userid)) return std::nullopt;
+        return Exchange::accounts[userid].cash;
+    }
+
+    std::optional<Orderbook::Quantity>Exchange::getAvailablePositions(const Orderbook::UserId userid, const Orderbook::Symbol sym){
+        if(!Exchange::hasUser(userid)) return std::nullopt;
+        if(Exchange::accounts[userid].positions.find(sym)==Exchange::accounts[userid].positions.end()) return std::nullopt;
+        return Exchange::accounts[userid].positions[sym];
+    }
+
+    bool Exchange::depositCash(const Orderbook::Cash ammount, const Orderbook::UserId userid){
+        if(!Exchange::hasUser(userid) || ammount<=0)return false;
+
+        Exchange::accounts[userid].cash+=ammount;
+        return true;
+    }
+
+    bool Exchange::withdrawCash(const Orderbook::Cash ammount, const Orderbook::UserId userid){
+        if(!Exchange::hasUser(userid) || Exchange::getAvailableCash(userid)<ammount || ammount<=0) return false;
+        Exchange::accounts[userid].cash-=ammount;
+        return true;
+    }
+
+    Orderbook::Quantity Exchange::depositPosition(const Orderbook::Quantity quantity, const Orderbook::Symbol sym , const Orderbook::UserId userid){
+        if(!Exchange::hasUser(userid)|| !Exchange::hasSymbol(sym) || quantity<=0) return 0;
+        return Exchange::accounts[userid].positions[sym]+=quantity;
+    }
+
+
+    Exch::ExchangeOrderResult Exchange::buy(const Orderbook::Symbol& symbol, Orderbook::Price price, Orderbook::Quantity quantity, Orderbook::UserId userid){
+        if(Exchange::symbolToBook.find(symbol)==Exchange::symbolToBook.end()){
+            const auto status = Exch::ExchangeOrderStatus::RejectedUnknownSymbol;
+            return {false, status, orderStatusMessage(status), symbol,0, {}, 0, userid};
         }
+
+        if(price<=0 || quantity<=0){
+            const auto status = Exch::ExchangeOrderStatus::RejectedInvalidInput;
+            return {false, status, orderStatusMessage(status), symbol,0, {}, 0, userid};
+        }
+
+        if(!Exchange::hasUser(userid)){
+            const auto status = Exch::ExchangeOrderStatus::RejectedUnknownUser;
+            return {false, status, orderStatusMessage(status), symbol,0, {}, 0, userid};
+        }
+
+        const auto requiredCash = safeMultiplyCash(price, quantity);
+        if(!requiredCash){
+            const auto status = Exch::ExchangeOrderStatus::RejectedCashOverflow;
+            return {false, status, orderStatusMessage(status), symbol,0, {}, 0, userid};
+        }
+
+        if(Exchange::getAvailableCash(userid) < requiredCash.value()){
+            const auto status = Exch::ExchangeOrderStatus::RejectedInsufficientCash;
+            return {false, status, orderStatusMessage(status), symbol,0,{},0, userid};
+        }
+
 
         Orderbook::OrderBook &book = Exchange::symbolToBook[symbol];
 
-        Orderbook::OrderResult res = book.makeBuyOrder(price,quantity, ++curOrderId);
+        Orderbook::OrderResult res = book.makeBuyOrder(price,quantity, ++curOrderId, userid);
+
 
         std::string mes;
+        auto status = acceptedStatus(quantity, res.remainQuantity);
         if(res.accepted) {
-            mes = "Succesfully Executed";
+            mes = orderStatusMessage(status);
             Exchange::orderToSymbol[curOrderId] = symbol;
+            Exchange::accounts[userid].orders.insert(curOrderId);
+            Exchange::accounts[userid].cash-= requiredCash.value();
+            Exchange::accounts[userid].reservedCash+=requiredCash.value();
         }
-        else mes = "Error can't placed order";
+        else{
+            status = res.alreadyPresent ? Exch::ExchangeOrderStatus::RejectedDuplicateOrderId : Exch::ExchangeOrderStatus::RejectedInvalidInput;
+            mes = orderStatusMessage(status);
+        }
 
 
         std::vector<Exch::ExchangeTrade>trd;
@@ -65,67 +225,150 @@ namespace Exch{
             temp.price = i.price;
             temp.quantity = i.quantity;
             temp.symbol = symbol;
+            temp.buyerUserId= i.buyerUserId;
+            temp.sellerUserId = i.sellerUserId;
+            const auto buyerReservedCash = safeMultiplyCash(i.buyerPrice, temp.quantity).value();
+            const auto buyerRefundCash = safeMultiplyCash(i.buyerPrice-temp.price, temp.quantity).value();
+            const auto sellerCash = safeMultiplyCash(temp.price, temp.quantity).value();
+            Exchange::accounts[temp.buyerUserId].reservedCash-=buyerReservedCash;
+            Exchange::accounts[temp.buyerUserId].cash+=buyerRefundCash;
+            Exchange::accounts[temp.buyerUserId].positions[temp.symbol]+=temp.quantity;
+            Exchange::accounts[temp.sellerUserId].cash+=sellerCash;
+            Exchange::accounts[temp.sellerUserId].reservedPositions[temp.symbol]-=temp.quantity;
+            Exchange::accounts[temp.buyerUserId].trade.push_back(temp);
+            Exchange::accounts[temp.sellerUserId].trade.push_back(temp);
+
             trd.push_back(temp);
-            if(!Exchange::symbolToBook[symbol].checkOrder(i.buyerOrderId)) Exchange::orderToSymbol.erase(i.buyerOrderId);
-            if(!Exchange::symbolToBook[symbol].checkOrder(i.sellerOrderId)) Exchange::orderToSymbol.erase(i.sellerOrderId);
+            if(!Exchange::symbolToBook[symbol].checkOrder(i.buyerOrderId)) Exchange::orderToSymbol.erase(i.buyerOrderId), Exchange::accounts[i.buyerUserId].orders.erase(i.buyerOrderId);
+            if(!Exchange::symbolToBook[symbol].checkOrder(i.sellerOrderId)) Exchange::orderToSymbol.erase(i.sellerOrderId), Exchange::accounts[i.sellerUserId].orders.erase(i.sellerOrderId);
         }
-        return {res.accepted, mes, symbol, res.orderId, trd, res.remainQuantity };
-        
+        return {res.accepted, status, mes, symbol, res.orderId, trd, res.remainQuantity, res.UserId };
+
     }
-    
-    
-    Exch::ExchangeOrderResult Exchange::sell(const Orderbook::Symbol& symbol, Orderbook::Price price, Orderbook::Quantity quantity ){
-        if(Exchange::symbolToBook.find(symbol)==Exchange::symbolToBook.end() || price<=0 || quantity<=0){
-            return {0, "Invalid Input", symbol,0, {}, 0};
+
+
+    Exch::ExchangeOrderResult Exchange::sell(const Orderbook::Symbol& symbol, Orderbook::Price price, Orderbook::Quantity quantity, Orderbook::UserId userid ){
+        if(Exchange::symbolToBook.find(symbol)==Exchange::symbolToBook.end()){
+            const auto status = Exch::ExchangeOrderStatus::RejectedUnknownSymbol;
+            return {false, status, orderStatusMessage(status), symbol,0, {}, 0, userid};
         }
-        
+
+        if(price<=0 || quantity<=0){
+            const auto status = Exch::ExchangeOrderStatus::RejectedInvalidInput;
+            return {false, status, orderStatusMessage(status), symbol,0, {}, 0, userid};
+        }
+
+        if(!Exchange::hasUser(userid)){
+            const auto status = Exch::ExchangeOrderStatus::RejectedUnknownUser;
+            return {false, status, orderStatusMessage(status), symbol,0, {}, 0, userid};
+        }
+
+        const auto availablePosition = Exchange::getAvailablePositions(userid,symbol);
+        if(!availablePosition || availablePosition.value()<quantity){
+            const auto status = Exch::ExchangeOrderStatus::RejectedInsufficientShares;
+            return {false, status, orderStatusMessage(status), symbol,0,{},0, userid};
+        }
+
         Orderbook::OrderBook &book = Exchange::symbolToBook[symbol];
-        
-        Orderbook::OrderResult res = book.makeSellOrder(price,quantity, ++curOrderId);
-        
+
+        Orderbook::OrderResult res = book.makeSellOrder(price,quantity, ++curOrderId, userid);
+
+
         std::string mes;
+        auto status = acceptedStatus(quantity, res.remainQuantity);
         if(res.accepted) {
-            mes = "Succesfully Executed";
+            mes = orderStatusMessage(status);
             Exchange::orderToSymbol[curOrderId] = symbol;
+            Exchange::accounts[userid].orders.insert(curOrderId);
+            Exchange::accounts[userid].positions[symbol]-=quantity;
+            Exchange::accounts[userid].reservedPositions[symbol]+=quantity;
         }
-        else mes = "Error can't placed order";
-        
-        
+        else{
+            status = res.alreadyPresent ? Exch::ExchangeOrderStatus::RejectedDuplicateOrderId : Exch::ExchangeOrderStatus::RejectedInvalidInput;
+            mes = orderStatusMessage(status);
+        }
+
+
         std::vector<Exch::ExchangeTrade>trd;
-        
+
         for(const auto &i:res.trade){
             Exch::ExchangeTrade temp;
             temp.buyerOrderId = i.buyerOrderId;
             temp.sellerOrderId = i.sellerOrderId;
+            temp.buyerUserId = i.buyerUserId;
+            temp.sellerUserId = i.sellerUserId;
             temp.price = i.price;
             temp.quantity = i.quantity;
             temp.symbol = symbol;
+            const auto buyerReservedCash = safeMultiplyCash(i.buyerPrice, temp.quantity).value();
+            const auto buyerRefundCash = safeMultiplyCash(i.buyerPrice-temp.price, temp.quantity).value();
+            const auto sellerCash = safeMultiplyCash(temp.price, temp.quantity).value();
+            Exchange::accounts[temp.buyerUserId].reservedCash-=buyerReservedCash;
+            Exchange::accounts[temp.buyerUserId].cash+=buyerRefundCash;
+            Exchange::accounts[temp.buyerUserId].positions[temp.symbol]+=temp.quantity;
+            Exchange::accounts[temp.sellerUserId].cash+=sellerCash;
+            Exchange::accounts[temp.sellerUserId].reservedPositions[temp.symbol]-=temp.quantity;
+            Exchange::accounts[temp.buyerUserId].trade.push_back(temp);
+            Exchange::accounts[temp.sellerUserId].trade.push_back(temp);
+
+
             trd.push_back(temp);
-            if(!Exchange::symbolToBook[symbol].checkOrder(i.buyerOrderId)) Exchange::orderToSymbol.erase(i.buyerOrderId);
-            if(!Exchange::symbolToBook[symbol].checkOrder(i.sellerOrderId)) Exchange::orderToSymbol.erase(i.sellerOrderId);
+
+            if(!Exchange::symbolToBook[symbol].checkOrder(i.buyerOrderId)) Exchange::orderToSymbol.erase(i.buyerOrderId), Exchange::accounts[i.buyerUserId].orders.erase(i.buyerOrderId);
+            if(!Exchange::symbolToBook[symbol].checkOrder(i.sellerOrderId)) Exchange::orderToSymbol.erase(i.sellerOrderId), Exchange::accounts[i.sellerUserId].orders.erase(i.sellerOrderId);
         }
 
-        
 
-        return {res.accepted, mes, symbol, res.orderId, trd, res.remainQuantity };
+
+        return {res.accepted, status, mes, symbol, res.orderId, trd, res.remainQuantity, res.UserId };
     }
 
 
 
-    Exch::CancelResult Exchange::cancelOrder(Orderbook::OrderId orderId){
+    Exch::CancelResult Exchange::cancelOrder(Orderbook::OrderId orderId, Orderbook::UserId userid){
         auto it1 = Exchange::orderToSymbol.find(orderId);
-        if(it1==Exchange::orderToSymbol.end()) return {0,"None",""};
-        
+        if(it1==Exchange::orderToSymbol.end()){
+            const auto status = Exch::CancelStatus::UnknownOrder;
+            return {false,status,"",cancelStatusMessage(status)};
+        }
+
+        if(!Exchange::hasUser(userid)){
+            const auto status = Exch::CancelStatus::UnknownUser;
+            return {false,status,it1->second,cancelStatusMessage(status)};
+        }
+
         auto it2 = Exchange::symbolToBook.find(it1->second);
-        if(it2 == Exchange::symbolToBook.end()) return {0,it1->second, ""};
+        if(it2 == Exchange::symbolToBook.end()){
+            const auto status = Exch::CancelStatus::UnknownSymbol;
+            return {false,status,it1->second,cancelStatusMessage(status)};
+        }
+
 
         auto &book = it2->second;
-        bool ok = book.cancelOrder(orderId);
+        if(book.getUserIdFromOrder(orderId)!=userid){
+            const auto status = Exch::CancelStatus::Unauthorized;
+            return {false,status,it1->second,cancelStatusMessage(status)};
+        }
+        Orderbook::CancelOrderResult ok = book.cancelOrder(orderId);
         Exch::CancelResult ans;
-        ans.cancelled = ok;
+        ans.cancelled = ok.cancelled;
+        ans.status = ok.cancelled ? Exch::CancelStatus::Cancelled : Exch::CancelStatus::NotCancelled;
         ans.symbol = it1->second;
-        if(ok){
+        ans.message = cancelStatusMessage(ans.status);
+        if(ok.cancelled){
             Exchange::orderToSymbol.erase(orderId);
+            if(ok.type==Orderbook::Type::buy){
+                const auto releasedCash = safeMultiplyCash(ok.orderPrice, ok.orderQuantity).value();
+                Exchange::accounts[userid].cash+=releasedCash;
+                Exchange::accounts[userid].reservedCash-=releasedCash;
+            }
+            else{
+                Exchange::accounts[userid].positions[ans.symbol]+=ok.orderQuantity;
+                Exchange::accounts[userid].reservedPositions[ans.symbol]-=ok.orderQuantity;
+            }
+            Exchange::accounts[userid].orders.erase(orderId);
+
+
         }
         return ans;
     }
@@ -139,8 +382,8 @@ namespace Exch{
         const auto &book = it->second;
         return book.getBuyOrders();
     }
-    
-    
+
+
     std::vector<Orderbook::Order> Exchange::getSellOrders(const Orderbook::Symbol& symbol) const{
         auto it = Exchange::symbolToBook.find(symbol);
         if(it == Exchange::symbolToBook.end()){
@@ -160,8 +403,8 @@ namespace Exch{
         auto &book = it->second;
         return book.getBestBid();
     }
-    
-    
+
+
     std::optional<Orderbook::Price> Exchange::getBestAsk(const Orderbook::Symbol& symbol) const{
         auto it = Exchange::symbolToBook.find(symbol);
         if(it == Exchange::symbolToBook.end()){
@@ -171,7 +414,7 @@ namespace Exch{
         auto &book = it->second;
         return book.getBestAsk();
     }
-    
+
 
     std::optional<Orderbook::Price> Exchange::getSpread(const Orderbook::Symbol& symbol) const{
         auto it = Exchange::symbolToBook.find(symbol);
@@ -192,7 +435,7 @@ namespace Exch{
 
         auto &book = it->second;
         auto trd = book.getTrade();
-        
+
         std::vector<Exch::ExchangeTrade> ans;
         for(auto &i:trd){
             Exch::ExchangeTrade temp;
@@ -201,6 +444,8 @@ namespace Exch{
             temp.price = i.price;
             temp.quantity = i.quantity;
             temp.symbol = symbol;
+            temp.buyerUserId = i.buyerUserId;
+            temp.sellerUserId = i.sellerUserId;
             ans.push_back(temp);
         }
         return ans;
@@ -215,27 +460,70 @@ namespace Exch{
         }
 
         auto &book = it->second;
+        auto v1 = book.getBuyOrders();
+        auto v2 = book.getSellOrders();
+
+        for(auto i:v1){
+            Exchange::cancelOrder(i.orderId,i.UserId);
+        }
+
+        for(auto i:v2){
+            Exchange::cancelOrder(i.orderId, i.UserId);
+        }
 
         book.clear();
         std::vector<Orderbook::OrderId>temp;
         for(auto &i:Exchange::orderToSymbol){
             if(i.second==symbol) temp.push_back(i.first);
         }
-        
+
         for(auto &i:temp) Exchange::orderToSymbol.erase(i);
 
     }
 
 
     void Exchange::clearAll(){
-        for(auto &i:Exchange::symbolToBook){
-            i.second.clear();
+        for(auto &symbolEntry:Exchange::symbolToBook){
+            auto v1 = symbolEntry.second.getBuyOrders();
+            auto v2 = symbolEntry.second.getSellOrders();
+            for(auto order:v1){
+                Exchange::cancelOrder(order.orderId,order.UserId);
+            }
+
+            for(auto order:v2){
+                Exchange::cancelOrder(order.orderId, order.UserId);
+            }
+            symbolEntry.second.clear();
+
         }
         orderToSymbol.clear();
         curOrderId=0;
     }
 
     bool Exchange::checkInvariant()const{
+        std::map<Orderbook::UserId, Orderbook::Cash> expectedReservedCash;
+        std::map<Orderbook::UserId, std::map<Orderbook::Symbol, Orderbook::Quantity>> expectedReservedPositions;
+        std::map<Orderbook::UserId, std::set<Orderbook::OrderId>> expectedOrders;
+        std::set<Orderbook::OrderId> activeOrderIds;
+
+        for(const auto& accountEntry : Exchange::accounts){
+            const auto userId = accountEntry.first;
+            const auto& account = accountEntry.second;
+
+            if(account.userid != userId)return false;
+            if(account.cash < 0)return false;
+            if(account.reservedCash < 0)return false;
+
+            for(const auto& position : account.positions){
+                if(position.second < 0)return false;
+                if(!Exchange::hasSymbol(position.first))return false;
+            }
+
+            for(const auto& reservedPosition : account.reservedPositions){
+                if(reservedPosition.second < 0)return false;
+                if(!Exchange::hasSymbol(reservedPosition.first))return false;
+            }
+        }
 
         for(const auto &i:Exchange::symbolToBook){
             const auto& sym = i.first;
@@ -243,15 +531,31 @@ namespace Exch{
             if(!book.checkInvariants())return false;
 
             for(const auto& order : book.getBuyOrders()){
-                auto it = Exchange::orderToSymbol.find(order.orderId);
-                if(it==Exchange::orderToSymbol.end())return false;
-                if(it->second != sym)return false;
+                auto symbolIt = Exchange::orderToSymbol.find(order.orderId);
+                if(symbolIt==Exchange::orderToSymbol.end())return false;
+                if(symbolIt->second != sym)return false;
+
+                auto accountIt = Exchange::accounts.find(order.UserId);
+                if(accountIt==Exchange::accounts.end())return false;
+                if(accountIt->second.orders.find(order.orderId) == accountIt->second.orders.end())return false;
+                if(!activeOrderIds.insert(order.orderId).second)return false;
+                expectedOrders[order.UserId].insert(order.orderId);
+                const auto expectedCash = safeMultiplyCash(order.price, order.quantity);
+                if(!expectedCash) return false;
+                expectedReservedCash[order.UserId] += expectedCash.value();
             }
-            
+
             for(const auto& order : book.getSellOrders()){
-                auto it = Exchange::orderToSymbol.find(order.orderId);
-                if(it==Exchange::orderToSymbol.end())return false;
-                if(it->second != sym)return false;
+                auto symbolIt = Exchange::orderToSymbol.find(order.orderId);
+                if(symbolIt==Exchange::orderToSymbol.end())return false;
+                if(symbolIt->second != sym)return false;
+
+                auto accountIt = Exchange::accounts.find(order.UserId);
+                if(accountIt==Exchange::accounts.end())return false;
+                if(accountIt->second.orders.find(order.orderId) == accountIt->second.orders.end())return false;
+                if(!activeOrderIds.insert(order.orderId).second)return false;
+                expectedOrders[order.UserId].insert(order.orderId);
+                expectedReservedPositions[order.UserId][sym] += order.quantity;
             }
         }
 
@@ -263,7 +567,28 @@ namespace Exch{
             if(bookIt==Exchange::symbolToBook.end()) return false;
             const Orderbook::OrderBook& bk = bookIt->second;
             if(!bk.checkOrder(i.first))return false;
+            if(activeOrderIds.find(i.first) == activeOrderIds.end())return false;
         }
+
+        for(const auto& accountEntry : Exchange::accounts){
+            const auto userId = accountEntry.first;
+            const auto& account = accountEntry.second;
+
+            if(account.orders != expectedOrders[userId])return false;
+            if(account.reservedCash != expectedReservedCash[userId])return false;
+
+            for(const auto& reservedPosition : account.reservedPositions){
+                const auto expected = expectedReservedPositions[userId][reservedPosition.first];
+                if(reservedPosition.second != expected)return false;
+            }
+
+            for(const auto& expectedPosition : expectedReservedPositions[userId]){
+                const auto reservedIt = account.reservedPositions.find(expectedPosition.first);
+                const auto actual = reservedIt == account.reservedPositions.end() ? 0 : reservedIt->second;
+                if(actual != expectedPosition.second)return false;
+            }
+        }
+
         return true;
 
     }
